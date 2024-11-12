@@ -71,11 +71,11 @@
 
 /* enums */
 enum { CurNormal, CurResize, CurMove, CurLast }; /* cursor */
-enum { SchemeNorm, SchemeSel }; /* color schemes */
+enum { SchemeNorm, SchemeSel, SchemeSec, SchemeSecInv }; /* color schemes */
 enum { NetSupported, NetWMName, NetWMState, NetWMCheck,
        NetSystemTray, NetSystemTrayOP, NetSystemTrayOrientation, NetSystemTrayOrientationHorz,
        NetWMFullscreen, NetActiveWindow, NetWMWindowType,
-       NetWMWindowTypeDialog, NetClientList, NetLast }; /* EWMH atoms */
+       NetWMWindowTypeDialog, NetWMWindowTypeDock, NetClientList, NetLast }; /* EWMH atoms */
 enum { Manager, Xembed, XembedInfo, XLast }; /* Xembed atoms */
 enum { WMProtocols, WMDelete, WMState, WMTakeFocus, WMLast }; /* default atoms */
 enum { ClkTagBar, ClkLtSymbol, ClkStatusText, ClkWinTitle,
@@ -866,8 +866,8 @@ drawstatusbar(Monitor *m, int bh, char* stext) {
 	x = m->ww - w - getsystraywidth();
 
 	drw_setscheme(drw, scheme[LENGTH(colors)]);
-	drw->scheme[ColFg] = scheme[SchemeNorm][ColFg];
-	drw->scheme[ColBg] = scheme[SchemeNorm][ColBg];
+	drw->scheme[ColFg] = scheme[SchemeSec][ColFg];
+	drw->scheme[ColBg] = scheme[SchemeSec][ColBg];
 	drw_rect(drw, x, 0, w, bh, 1, 1);
 	x++;
 
@@ -898,8 +898,8 @@ drawstatusbar(Monitor *m, int bh, char* stext) {
 					drw_clr_create(drw, &drw->scheme[ColBg], buf);
 					i += 7;
 				} else if (text[i] == 'd') {
-					drw->scheme[ColFg] = scheme[SchemeNorm][ColFg];
-					drw->scheme[ColBg] = scheme[SchemeNorm][ColBg];
+					drw->scheme[ColFg] = scheme[SchemeSec][ColFg];
+					drw->scheme[ColBg] = scheme[SchemeSec][ColBg];
 				} else if (text[i] == 'r') {
 					int rx = atoi(text + ++i);
 					while (text[++i] != ',');
@@ -926,7 +926,7 @@ drawstatusbar(Monitor *m, int bh, char* stext) {
 		drw_text(drw, x, 0, w, bh, 0, text, 0);
 	}
 
-	drw_setscheme(drw, scheme[SchemeNorm]);
+	drw_setscheme(drw, scheme[SchemeSec]);
 	free(p);
 
 	return ret;
@@ -939,6 +939,8 @@ drawbar(Monitor *m)
 	int boxs = drw->fonts->h / 9;
 	int boxw = drw->fonts->h / 6 + 2;
 	unsigned int i, occ = 0, urg = 0;
+	int tagscheme = SchemeNorm;
+	int tlpad;
 	Client *c;
 
 	if (!m->showbar)
@@ -960,13 +962,20 @@ drawbar(Monitor *m)
 	}
 	x = 0;
 	for (i = 0; i < LENGTH(tags); i++) {
+		if (m->tagset[m->seltags] & 1 << i)
+			tagscheme = SchemeSel;
+		else if (occ & 1 << i)
+			tagscheme = SchemeNorm;
+		else
+			tagscheme = SchemeSec;
+
 		w = TEXTW(tags[i]);
-		drw_setscheme(drw, scheme[m->tagset[m->seltags] & 1 << i ? SchemeSel : SchemeNorm]);
+		drw_setscheme(drw, scheme[tagscheme]);
 		drw_text(drw, x, 0, w, bh, lrpad / 2, tags[i], urg & 1 << i);
-		if (occ & 1 << i)
-			drw_rect(drw, x + boxs, boxs, boxw, boxw,
-				m == selmon && selmon->sel && selmon->sel->tags & 1 << i,
-				urg & 1 << i);
+		// if (occ & 1 << i)
+		// 	drw_rect(drw, x + boxs, boxs, boxw, boxw,
+		// 		m == selmon && selmon->sel && selmon->sel->tags & 1 << i,
+		// 		urg & 1 << i);
 		x += w;
 	}
 	w = TEXTW(m->ltsymbol);
@@ -975,10 +984,12 @@ drawbar(Monitor *m)
 
 	if ((w = m->ww - tw - stw - x) > bh) {
 		if (m->sel) {
-			drw_setscheme(drw, scheme[m == selmon ? SchemeSel : SchemeNorm]);
-			drw_text(drw, x, 0, w, bh, lrpad / 2, m->sel->name, 0);
+			drw_setscheme(drw, scheme[SchemeNorm]);
+			tlpad = MAX((m->ww - ((int)TEXTW(m->sel->name) - lrpad)) / 2 - x, lrpad / 2);
+			drw_text(drw, x, 0, w, bh, tlpad, m->sel->name, 0);
 			if (m->sel->isfloating)
-				drw_rect(drw, x + boxs, boxs, boxw, boxw, m->sel->isfixed, 0);
+				drw_rect(drw, x + boxs + tlpad - lrpad / 2, boxs,
+					boxw, boxw, m->sel->isfixed, 0);
 		} else {
 			drw_setscheme(drw, scheme[SchemeNorm]);
 			drw_rect(drw, x, 0, w, bh, 1, 1);
@@ -1413,7 +1424,7 @@ monocle(Monitor *m)
 		if (ISVISIBLE(c))
 			n++;
 	if (n > 0) /* override layout symbol */
-		snprintf(m->ltsymbol, sizeof m->ltsymbol, "[%d]", n);
+		snprintf(m->ltsymbol, sizeof m->ltsymbol, " %d", n);
 	for (c = nexttiled(m->clients); c; c = nexttiled(c->next))
 		resize(c, m->wx, m->wy, m->ww - 2 * c->bw, m->wh - 2 * c->bw, 0);
 }
@@ -1911,7 +1922,7 @@ setup(void)
 	if (!drw_fontset_create(drw, fonts, LENGTH(fonts)))
 		die("no fonts could be loaded.");
 	lrpad = drw->fonts->h;
-	bh = drw->fonts->h + 2;
+	bh = barheight ? barheight : drw->fonts->h + 2;
 	updategeom();
 	/* init atoms */
 	utf8string = XInternAtom(dpy, "UTF8_STRING", False);
@@ -1931,6 +1942,7 @@ setup(void)
 	netatom[NetWMFullscreen] = XInternAtom(dpy, "_NET_WM_STATE_FULLSCREEN", False);
 	netatom[NetWMWindowType] = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE", False);
 	netatom[NetWMWindowTypeDialog] = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_DIALOG", False);
+	netatom[NetWMWindowTypeDock] = XInternAtom(dpy, "_NET_WM_WINDOW_TYPE_DOCK", False);
 	netatom[NetClientList] = XInternAtom(dpy, "_NET_CLIENT_LIST", False);
 	xatom[Manager] = XInternAtom(dpy, "MANAGER", False);
 	xatom[Xembed] = XInternAtom(dpy, "_XEMBED", False);
@@ -2230,6 +2242,8 @@ updatebars(void)
 			XMapRaised(dpy, systray->win);
 		XMapRaised(dpy, m->barwin);
 		XSetClassHint(dpy, m->barwin, &ch);
+		XChangeProperty(dpy, m->barwin, netatom[NetWMWindowType], XA_ATOM, 32,
+			PropModeReplace, (unsigned char *)&netatom[NetWMWindowTypeDock], 1);
 	}
 }
 
