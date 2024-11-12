@@ -4,8 +4,10 @@ dwm is an extremely fast, small, and dynamic window manager for X.
 
 Patches
 -------
-- status2d
-- statuscmd
+- [smartborders](https://dwm.suckless.org/patches/smartborders/dwm-smartborders-6.2.diff)
+- [pertag](https://dwm.suckless.org/patches/pertag/dwm-pertag_with_sel-20231003-9f88553.diff)
+- [status2d](https://dwm.suckless.org/patches/status2d/dwm-status2d-systray-6.4.diff)
+- [statuscmd](https://dwm.suckless.org/patches/statuscmd/dwm-statuscmd-status2d-20210405-60bb3df.diff)
 
 Requirements
 ------------
