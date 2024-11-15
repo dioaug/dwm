@@ -16,6 +16,7 @@ Patches
 - [focusonnetactive](https://dwm.suckless.org/patches/focusonnetactive/dwm-focusonnetactive-6.2.diff)
 - [ewmhtags](https://dwm.suckless.org/patches/ewmhtags/dwm-ewmhtags-6.2.diff)
 - [actualfullscreen](https://dwm.suckless.org/patches/actualfullscreen/dwm-actualfullscreen-20211013-cb3f58a.diff)
+- [scratchpads](https://dwm.suckless.org/patches/scratchpads/dwm-scratchpads-20200414-728d397b.diff)
 
 Requirements
 ------------
