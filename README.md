@@ -13,6 +13,7 @@ Patches
 - [focusonclick](https://dwm.suckless.org/patches/focusonclick/dwm-focusonclick-20200110-61bb8b2.diff)
 - [fixborders](https://dwm.suckless.org/patches/alpha/dwm-fixborders-6.2.diff)
 - [tilegap](https://dwm.suckless.org/patches/tilegap/dwm-tilegap-6.4.diff)
+- [focusonnetactive](https://dwm.suckless.org/patches/focusonnetactive/dwm-focusonnetactive-6.2.diff)
 
 Requirements
 ------------
