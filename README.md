@@ -14,6 +14,7 @@ Patches
 - [fixborders](https://dwm.suckless.org/patches/alpha/dwm-fixborders-6.2.diff)
 - [tilegap](https://dwm.suckless.org/patches/tilegap/dwm-tilegap-6.4.diff)
 - [focusonnetactive](https://dwm.suckless.org/patches/focusonnetactive/dwm-focusonnetactive-6.2.diff)
+- [ewmhtags](https://dwm.suckless.org/patches/ewmhtags/dwm-ewmhtags-6.2.diff)
 
 Requirements
 ------------
