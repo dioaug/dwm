@@ -15,6 +15,7 @@ Patches
 - [tilegap](https://dwm.suckless.org/patches/tilegap/dwm-tilegap-6.4.diff)
 - [focusonnetactive](https://dwm.suckless.org/patches/focusonnetactive/dwm-focusonnetactive-6.2.diff)
 - [ewmhtags](https://dwm.suckless.org/patches/ewmhtags/dwm-ewmhtags-6.2.diff)
+- [actualfullscreen](https://dwm.suckless.org/patches/actualfullscreen/dwm-actualfullscreen-20211013-cb3f58a.diff)
 
 Requirements
 ------------
