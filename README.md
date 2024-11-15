@@ -8,6 +8,7 @@ Patches
 - [pertag](https://dwm.suckless.org/patches/pertag/dwm-pertag_with_sel-20231003-9f88553.diff)
 - [status2d](https://dwm.suckless.org/patches/status2d/dwm-status2d-systray-6.4.diff)
 - [statuscmd](https://dwm.suckless.org/patches/statuscmd/dwm-statuscmd-status2d-20210405-60bb3df.diff)
+- [systrayiconsize](https://gitlab.com/-/snippets/2184056)
 
 Requirements
 ------------
