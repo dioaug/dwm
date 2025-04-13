@@ -19,9 +19,9 @@ static const char *fonts[]          = { "CaskaydiaCove Nerd Font:style:bold:size
 static const char dmenufont[]       = "CaskaydiaCove Nerd Font:style:bold:size=12";
 static const char col_gray1[]       = "#121212";
 static const char col_gray2[]       = "#1c1c1c";
-static const char col_gray3[]       = "#627f77";
+static const char col_gray3[]       = "#7a7a7a";
 static const char col_gray4[]       = "#eeeeee";
-static const char col_cyan[]        = "#00ff85";
+static const char col_cyan[]        = "#90ff40";
 static const char *colors[][3]      = {
 	/*               fg         bg         border   */
 	[SchemeNorm]   = { col_gray4, col_gray1, col_gray2 },
