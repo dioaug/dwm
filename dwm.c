@@ -142,6 +142,7 @@ struct Monitor {
 	unsigned int sellt;
 	unsigned int tagset[2];
 	int showbar;
+	int createfconly;
 	int topbar;
 	Client *clients;
 	Client *sel;
@@ -251,6 +252,7 @@ static void togglefullscr(const Arg *arg);
 static void togglescratch(const Arg *arg);
 static void toggletag(const Arg *arg);
 static void toggleview(const Arg *arg);
+static void togglecreatefconly(const Arg *arg);
 static void unfocus(Client *c, int setfocus);
 static void unmanage(Client *c, int destroyed);
 static void unmapnotify(XEvent *e);
@@ -325,6 +327,7 @@ struct Pertag {
 	const Layout *ltidxs[LENGTH(tags) + 1][2]; /* matrix of tags and layouts indexes  */
 	int showbars[LENGTH(tags) + 1]; /* display bar for the current tag */
 	Client *sel[LENGTH(tags) + 1]; /* selected client */
+	int createfconly[LENGTH(tags) + 1]; /* display bar for the current tag */
 };
 
 /* compile-time check if all tags fit into an unsigned int bit array. */
@@ -814,6 +817,7 @@ createmon(void)
 		m->pertag->sellts[i] = m->sellt;
 
 		m->pertag->showbars[i] = m->showbar;
+		m->pertag->createfconly[i] = m->createfconly;
 	}
 
 	return m;
@@ -1404,6 +1408,10 @@ manage(Window w, XWindowAttributes *wa)
 	c->y = c->mon->my + (c->mon->mh - HEIGHT(c)) / 2;
 	XSelectInput(dpy, w, EnterWindowMask|FocusChangeMask|PropertyChangeMask|StructureNotifyMask);
 	grabbuttons(c, 0);
+	//c->isfloating = c->mon->pertag->createfconly;
+	
+	//if (selmon->createfconly)
+		c->isfloating = selmon->pertag->createfconly[selmon->pertag->curtag];
 	if (!c->isfloating)
 		c->isfloating = c->oldstate = trans != None || c->isfixed;
 	if (c->isfloating)
@@ -2241,6 +2249,11 @@ toggletag(const Arg *arg)
 		arrange(selmon);
 	}
 	updatecurrentdesktop();
+}
+
+void
+togglecreatefconly(const Arg *arg) {
+	selmon->createfconly = selmon->pertag->createfconly[selmon->pertag->curtag] = !selmon->createfconly;
 }
 
 void
