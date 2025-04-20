@@ -246,7 +246,7 @@ static void spawn(const Arg *arg);
 static Monitor *systraytomon(Monitor *m);
 static void tag(const Arg *arg);
 static void tagmon(const Arg *arg);
-static void tile(Monitor *m);
+static void spiral(Monitor *mon);
 static void togglebar(const Arg *arg);
 static void togglefloating(const Arg *arg);
 static void togglefullscr(const Arg *arg);
@@ -2144,40 +2144,64 @@ tagmon(const Arg *arg)
 }
 
 void
-tile(Monitor *m)
-{
-	unsigned int i, n, h, mw, my, ty, ns, bw;
+fibonacci(Monitor *mon, int s) {
+	unsigned int i, n, nx, ny, nw, nh, bw;
+
 	Client *c;
-
-	for (n = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), n++);
-	if (n == 0)
+	for(n = 0, c = nexttiled(mon->clients); c; c = nexttiled(c->next), n++);
+	if(n == 0)
 		return;
+	
+	nx = mon->wx;
+	ny = mon->wy;
+	nw = mon->ww;
+	nh = mon->wh;
+	bw = borderpx;
 
-	//if (n == 1)
-		// bw = 0;
-	// else
-		bw = borderpx;
+	for(i = 0, c = nexttiled(mon->clients); c; c = nexttiled(c->next)) {
+		if((i % 2 && nh / 2 > 2 * c->bw)
+			|| (!(i % 2) && nw / 2 > 2 * c->bw)) {
+			if(i < n - 1) {
+				if(i % 2) nh /= 2;
+				else       nw /= 2;
 
-	if (n > m->nmaster) {
-		mw = m->nmaster ? m->ww * m->mfact : 0;
-		ns = m->nmaster > 0 ? 2 : 1;
-	} else {
-		mw = m->ww;
-		ns = 1;
-	}
-	for(i = 0, my = ty = gappx, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++) {
-		if (i < m->nmaster) {
-			h = (m->wh - my) / (MIN(n, m->nmaster) - i) - gappx;
-			resize(c, m->wx + gappx, m->wy + my, mw - 2*bw - gappx*(5-ns)/2, h - 2*bw, bw, False);
-			if (my + HEIGHT(c) < m->wh)
-				my += HEIGHT(c) + gappx;
-		} else {
-			h = (m->wh - ty) / (n - i) - gappx;
-			resize(c, m->wx + mw + gappx/ns, m->wy + ty, m->ww - mw - 2*bw - gappx*(5-ns)/2, h - 2*bw, bw, False);
-			if (ty + HEIGHT(c) < m->wh)
-				ty += HEIGHT(c) + gappx;
+				if((i % 4) == 2 && !s)      nx += nw;
+				else if((i % 4) == 3 && !s) ny += nh;
+			}
+			if((i % 4) == 0) {
+				if(s)      ny += nh;
+				else       ny -= nh;
+			}
+			else if((i % 4) == 1) nx += nw;
+			else if((i % 4) == 2) ny += nh;
+			else if((i % 4) == 3) {
+				if(s)      nx += nw;
+				else       nx -= nw;
+			}
+
+			if(i == 0) {
+				if(n != 1)
+					nw = mon->ww * mon->mfact;
+				ny = mon->wy;
+			}
+			else if(i == 1) {
+				nw = mon->ww - nw;
+			}
+			i++;
 		}
+
+		unsigned int ox = (nx      == mon->wx           ) ? gappx  : gappx / 2;
+		unsigned int oy = (ny      == mon->wy           ) ? gappx  : gappx / 2;
+		unsigned int rx = (nx + nw == mon->wx + mon->ww ) ? gappx  : gappx / 2;
+		unsigned int by = (ny + nh == mon->wy + mon->wh ) ? gappx  : gappx / 2;
+
+		resize(c, nx + ox, ny + oy, nw - 2*bw - ox - rx, nh - 2*bw - oy - by, bw, 0);
 	}
+}
+
+void
+spiral(Monitor *mon) {
+	fibonacci(mon, 0);
 }
 
 void
