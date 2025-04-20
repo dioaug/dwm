@@ -1,5 +1,7 @@
 /* See LICENSE file for copyright and license details. */
 
+#include <X11/XF86keysym.h>
+
 /* appearance */
 static const unsigned int borderpx  = 2;        /* border pixel of windows */
 static const unsigned int gappx     = 10;       /* gap pixel between windows */
@@ -64,7 +66,7 @@ static const Layout layouts[] = {
 	/* symbol     arrange function */
 	{ "[]=",      tile },    /* first entry is default */
 	{ "><>",      NULL },    /* no layout function means floating behavior */
-	{ "[M]",      monocle },
+	{ "",      monocle },
 };
 
 /* key definitions */
@@ -86,7 +88,10 @@ static char dmenumon[2] = "0"; /* component of dmenucmd, manipulated in spawn() 
 static const char *dmenucmd[] = { "dmenu_run", "-m", dmenumon, "-fn", dmenufont, "-nb", col_gray1, "-nf", col_gray3, "-sb", col_cyan, "-sf", col_gray4, NULL };
 static const char *roficmd[]  = { "rofi", "-show", "run", "-show-icons", NULL };
 static const char *rofiwndcmd[]  = { "rofi", "-show", "window", NULL };
-static const char *printscreencdm[]  = { "flameshot", "gui", NULL };
+static const char *printscreencmd[]  = { "flameshot", "gui", NULL };
+static const char *volumeraisecmd[]  = { "diowm-sb-volume", "raise", NULL };
+static const char *volumelowercmd[]  = { "diowm-sb-volume", "lower", NULL };
+static const char *volumemutecmd[]  = { "diowm-sb-volume", "togglemute", NULL };
 static const char *termcmd[]  = { "alacritty", NULL };
 
 static const Key keys[] = {
@@ -94,7 +99,7 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_d,      spawn,          {.v = roficmd } },
 	{ MODKEY,                       XK_Tab,    spawn,          {.v = rofiwndcmd } },
 	{ MODKEY,                       XK_Return, spawn,          {.v = termcmd } },
-	{ 0,							PrtScn,    spawn,          {.v = printscreencdm } },
+	{ 0,							PrtScn,    spawn,          {.v = printscreencmd } },
 	{ MODKEY,                       XK_b,      togglebar,      {0} },
 	{ MODKEY,                       XK_j,      focusstack,     {.i = +1 } },
 	{ MODKEY,                       XK_k,      focusstack,     {.i = -1 } },
@@ -117,6 +122,9 @@ static const Key keys[] = {
 	{ MODKEY|ShiftMask,             XK_comma,  tagmon,         {.i = -1 } },
 	{ MODKEY|ShiftMask,             XK_period, tagmon,         {.i = +1 } },
 	{ MODKEY,            			XK_c,  	   togglescratch,  {.ui = 0 } },
+	{ 0,            			    XF86XK_AudioRaiseVolume,   spawn,  {.v = volumeraisecmd } },
+	{ 0,            			    XF86XK_AudioLowerVolume,   spawn,  {.v = volumelowercmd } },
+	{ 0,            			    XF86XK_AudioMute,          spawn,  {.v = volumemutecmd } },
 	TAGKEYS(                        XK_1,                      0)
 	TAGKEYS(                        XK_2,                      1)
 	TAGKEYS(                        XK_3,                      2)
