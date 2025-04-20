@@ -1105,8 +1105,6 @@ focus(Client *c)
 			selmon = c->mon;
 		if (c->isurgent)
 			seturgent(c, 0);
-		detachstack(c);
-		attachstack(c);
 		grabbuttons(c, 1);
 		XSetWindowBorder(dpy, c->win, scheme[SchemeSel][ColBorder].pixel);
 		setfocus(c);
@@ -1116,6 +1114,8 @@ focus(Client *c)
 	}
 	selmon->sel = c;
 	selmon->pertag->sel[selmon->pertag->curtag] = c;
+	if(c && selmon->lt[selmon->sellt]->arrange == monocle)
+		XRaiseWindow(dpy, c->win);
 	drawbars();
 }
 
@@ -1180,8 +1180,8 @@ focusdir(const Arg *arg)
 	}
 
 	if (f && f != s) {
-		focus(f);
 		restack(f->mon);
+		focus(f);
 	}
 }
 
@@ -1576,11 +1576,60 @@ movemouse(const Arg *arg)
 				ny = selmon->wy;
 			else if (abs((selmon->wy + selmon->wh) - (ny + HEIGHT(c))) < snap)
 				ny = selmon->wy + selmon->wh - HEIGHT(c);
-			if (!c->isfloating && selmon->lt[selmon->sellt]->arrange
-			&& (abs(nx - c->x) > snap || abs(ny - c->y) > snap))
-				togglefloating(NULL);
 			if (!selmon->lt[selmon->sellt]->arrange || c->isfloating)
 				resize(c, nx, ny, c->w, c->h, c->bw, 1);
+			else if (selmon->lt[selmon->sellt]->arrange || !c->isfloating) {
+				if ((m = recttomon(ev.xmotion.x_root, ev.xmotion.y_root, 1, 1)) != selmon) {
+					sendmon(c, m);
+					selmon = m;
+					focus(NULL);
+				}
+
+				Client *cc = c->mon->clients;
+				while (1) {
+					if (cc == 0) break;
+					if(
+					 cc != c && !cc->isfloating && ISVISIBLE(cc) &&
+					 ev.xmotion.x_root > cc->x &&
+					 ev.xmotion.x_root < cc->x + cc->w &&
+					 ev.xmotion.y_root > cc->y &&
+					 ev.xmotion.y_root < cc->y + cc->h ) {
+						break;
+					}
+
+					cc = cc->next;
+				}
+
+				if (cc) {
+					Client *cl1, *cl2, ocl1;
+					
+					if (!selmon->lt[selmon->sellt]->arrange) return;
+
+					cl1 = c;
+					cl2 = cc;
+					ocl1 = *cl1;
+					strcpy(cl1->name, cl2->name);
+					cl1->win = cl2->win;
+					cl1->x = cl2->x;
+					cl1->y = cl2->y;
+					cl1->w = cl2->w;
+					cl1->h = cl2->h;
+					
+					cl2->win = ocl1.win;
+					strcpy(cl2->name, ocl1.name);
+					cl2->x = ocl1.x;
+					cl2->y = ocl1.y;
+					cl2->w = ocl1.w;
+					cl2->h = ocl1.h;
+					
+					selmon->sel = cl2;
+
+					c = cc;
+					focus(c);
+					
+					arrange(cl1->mon);
+				}
+			}
 			break;
 		}
 	} while (ev.type != ButtonRelease);
@@ -2490,6 +2539,9 @@ unmanage(Client *c, int destroyed)
 	int i;
 	Monitor *m = c->mon;
 	XWindowChanges wc;
+	int fullscreen = (selmon->sel == c && selmon->sel->isfullscreen)?1:0;
+	Client *nc;
+	for (nc = c->next; nc && !ISVISIBLE(nc); nc = nc->next);
 
 	for (i = 0; i < LENGTH(tags) + 1; i++)
 		if (c->mon->pertag->sel[i] == c)
@@ -2510,7 +2562,10 @@ unmanage(Client *c, int destroyed)
 		XUngrabServer(dpy);
 	}
 	free(c);
-	focus(NULL);
+	focus(nc);
+	if(fullscreen)
+		togglefullscr(0);
+	// aqui olhaaaaa
 	updateclientlist();
 	arrange(m);
 }
