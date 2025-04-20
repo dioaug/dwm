@@ -101,12 +101,21 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_Return, spawn,          {.v = termcmd } },
 	{ 0,							PrtScn,    spawn,          {.v = printscreencmd } },
 	{ MODKEY,                       XK_b,      togglebar,      {0} },
-	{ MODKEY,                       XK_j,      focusstack,     {.i = +1 } },
-	{ MODKEY,                       XK_k,      focusstack,     {.i = -1 } },
+
+	{ MODKEY,                       XK_h,      focusdir,       {.i = 0 } }, // left
+	{ MODKEY,                       XK_l,      focusdir,       {.i = 1 } }, // right
+	{ MODKEY,                       XK_k,      focusdir,       {.i = 2 } }, // up
+	{ MODKEY,                       XK_j,      focusdir,       {.i = 3 } }, // down
+	{ MODKEY,                       XK_Left,   focusdir,       {.i = 0 } }, // left
+	{ MODKEY,                       XK_Right,  focusdir,       {.i = 1 } }, // right
+	{ MODKEY,                       XK_Up,     focusdir,       {.i = 2 } }, // up
+	{ MODKEY,                       XK_Down,   focusdir,       {.i = 3 } }, // down
+	
+	{ MODKEY|ControlMask,           XK_h,      setmfact,       {.f = -0.05} },
+	{ MODKEY|ControlMask,           XK_l,      setmfact,       {.f = +0.05} },
+
 	{ MODKEY,                       XK_i,      incnmaster,     {.i = +1 } },
 	{ MODKEY,                       XK_p,      incnmaster,     {.i = -1 } },
-	{ MODKEY,                       XK_h,      setmfact,       {.f = -0.05} },
-	{ MODKEY,                       XK_l,      setmfact,       {.f = +0.05} },
 	{ MODKEY|ShiftMask,             XK_Return, zoom,           {0} },
 	{ MODKEY,                       XK_v,      view,           {0} },
 	{ MODKEY|ShiftMask,             XK_q,      killclient,     {0} },
