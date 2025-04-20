@@ -110,6 +110,15 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_Right,  focusdir,       {.i = 1 } }, // right
 	{ MODKEY,                       XK_Up,     focusdir,       {.i = 2 } }, // up
 	{ MODKEY,                       XK_Down,   focusdir,       {.i = 3 } }, // down
+
+	{ MODKEY|ShiftMask,             XK_h,      placedir,       {.i = 0 } }, // left
+	{ MODKEY|ShiftMask,             XK_l,      placedir,       {.i = 1 } }, // right
+	{ MODKEY|ShiftMask,             XK_k,      placedir,       {.i = 2 } }, // up
+	{ MODKEY|ShiftMask,             XK_j,      placedir,       {.i = 3 } }, // down
+	{ MODKEY|ShiftMask,             XK_Left,   placedir,       {.i = 0 } }, // left
+	{ MODKEY|ShiftMask,             XK_Right,  placedir,       {.i = 1 } }, // right
+	{ MODKEY|ShiftMask,             XK_Up,     placedir,       {.i = 2 } }, // up
+	{ MODKEY|ShiftMask,             XK_Down,   placedir,       {.i = 3 } }, // down
 	
 	{ MODKEY|ControlMask,           XK_h,      setmfact,       {.f = -0.05} },
 	{ MODKEY|ControlMask,           XK_l,      setmfact,       {.f = +0.05} },
