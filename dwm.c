@@ -1105,6 +1105,8 @@ focus(Client *c)
 			selmon = c->mon;
 		if (c->isurgent)
 			seturgent(c, 0);
+		detachstack(c);
+		attachstack(c);
 		grabbuttons(c, 1);
 		XSetWindowBorder(dpy, c->win, scheme[SchemeSel][ColBorder].pixel);
 		setfocus(c);
@@ -1114,8 +1116,6 @@ focus(Client *c)
 	}
 	selmon->sel = c;
 	selmon->pertag->sel[selmon->pertag->curtag] = c;
-	if(c && selmon->lt[selmon->sellt]->arrange == monocle)
-		XRaiseWindow(dpy, c->win);
 	drawbars();
 }
 
@@ -1180,8 +1180,8 @@ focusdir(const Arg *arg)
 	}
 
 	if (f && f != s) {
-		restack(f->mon);
 		focus(f);
+		restack(f->mon);
 	}
 }
 
@@ -2539,9 +2539,6 @@ unmanage(Client *c, int destroyed)
 	int i;
 	Monitor *m = c->mon;
 	XWindowChanges wc;
-	int fullscreen = (selmon->sel == c && selmon->sel->isfullscreen)?1:0;
-	Client *nc;
-	for (nc = c->next; nc && !ISVISIBLE(nc); nc = nc->next);
 
 	for (i = 0; i < LENGTH(tags) + 1; i++)
 		if (c->mon->pertag->sel[i] == c)
@@ -2562,10 +2559,7 @@ unmanage(Client *c, int destroyed)
 		XUngrabServer(dpy);
 	}
 	free(c);
-	focus(nc);
-	if(fullscreen)
-		togglefullscr(0);
-	// aqui olhaaaaa
+	focus(NULL);
 	updateclientlist();
 	arrange(m);
 }
