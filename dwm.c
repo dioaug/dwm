@@ -20,6 +20,7 @@
  *
  * To understand everything else, start reading main().
  */
+ 
 #include <errno.h>
 #include <locale.h>
 #include <signal.h>
@@ -48,7 +49,7 @@
 #define BUTTONMASK              (ButtonPressMask|ButtonReleaseMask)
 #define CLEANMASK(mask)         (mask & ~(numlockmask|LockMask) & (ShiftMask|ControlMask|Mod1Mask|Mod2Mask|Mod3Mask|Mod4Mask|Mod5Mask))
 #define INTERSECT(x,y,w,h,m)    (MAX(0, MIN((x)+(w),(m)->wx+(m)->ww) - MAX((x),(m)->wx)) \
-                               * MAX(0, MIN((y)+(h),(m)->wy+(m)->wh) - MAX((y),(m)->wy)))
+							* MAX(0, MIN((y)+(h),(m)->wy+(m)->wh) - MAX((y),(m)->wy)))
 #define ISVISIBLE(C)            ((C->tags & C->mon->tagset[C->mon->seltags]))
 #define MOUSEMASK               (BUTTONMASK|PointerMotionMask)
 #define WIDTH(X)                ((X)->w + 2 * (X)->bw)
@@ -59,6 +60,8 @@
 #define SPTAGMASK   			(((1 << LENGTH(scratchpads))-1) << LENGTH(tags))
 #define TAGSLENGTH              (LENGTH(tags))
 #define TEXTW(X)                (drw_fontset_getwidth(drw, (X)) + lrpad)
+#define OPAQUE                  0xffU
+#define _NET_SYSTEM_TRAY_ORIENTATION_HORZ 0
 
 #define SYSTEM_TRAY_REQUEST_DOCK    0
 /* XEMBED messages */
@@ -77,13 +80,13 @@
 enum { CurNormal, CurResize, CurMove, CurLast }; /* cursor */
 enum { SchemeNorm, SchemeSel, SchemeSec, SchemeSecInv }; /* color schemes */
 enum { NetSupported, NetWMName, NetWMState, NetWMCheck,
-       NetSystemTray, NetSystemTrayOP, NetSystemTrayOrientation, NetSystemTrayOrientationHorz,
-       NetWMFullscreen, NetActiveWindow, NetWMWindowType,
-       NetWMWindowTypeDialog, NetWMWindowTypeDock, NetClientList, NetDesktopNames, NetDesktopViewport, NetNumberOfDesktops, NetCurrentDesktop, NetLast }; /* EWMH atoms */
+	NetSystemTray, NetSystemTrayOP, NetSystemTrayOrientation, NetSystemTrayOrientationHorz, NetSystemTrayVisual,
+	NetWMFullscreen, NetActiveWindow, NetWMWindowType,
+	NetWMWindowTypeDialog, NetWMWindowTypeDock, NetClientList, NetDesktopNames, NetDesktopViewport, NetNumberOfDesktops, NetCurrentDesktop, NetLast }; /* EWMH atoms */
 enum { Manager, Xembed, XembedInfo, XLast }; /* Xembed atoms */
 enum { WMProtocols, WMDelete, WMState, WMTakeFocus, WMLast }; /* default atoms */
 enum { ClkTagBar, ClkLtSymbol, ClkStatusText, ClkWinTitle,
-       ClkClientWin, ClkRootWin, ClkLast }; /* clicks */
+	ClkClientWin, ClkRootWin, ClkLast }; /* clicks */
 
 typedef union {
 	int i;
@@ -279,10 +282,12 @@ static Client *wintosystrayicon(Window w);
 static int xerror(Display *dpy, XErrorEvent *ee);
 static int xerrordummy(Display *dpy, XErrorEvent *ee);
 static int xerrorstart(Display *dpy, XErrorEvent *ee);
+static void xinitvisual();
 static void zoom(const Arg *arg);
 
 /* variables */
 static Systray *systray = NULL;
+static unsigned long systrayorientation = _NET_SYSTEM_TRAY_ORIENTATION_HORZ;
 static const char broken[] = "broken";
 static char stext[1024];
 static int statussig;
@@ -306,7 +311,7 @@ static void (*handler[LASTEvent]) (XEvent *) = {
 	[MappingNotify] = mappingnotify,
 	[MapRequest] = maprequest,
 	[PropertyNotify] = propertynotify,
-    [ResizeRequest] = resizerequest,
+	[ResizeRequest] = resizerequest,
 	[UnmapNotify] = unmapnotify
 };
 static Atom wmatom[WMLast], netatom[NetLast], xatom[XLast];
@@ -318,6 +323,11 @@ static Drw *drw;
 static Monitor *mons, *selmon;
 static Window root, wmcheckwin;
 
+static int useargb = 0;
+static Visual *visual;
+static int depth;
+static Colormap cmap;
+ 
 /* configuration, allows nested code to access above variables */
 #include "config.h"
 
@@ -462,7 +472,7 @@ arrange(Monitor *m)
 void
 arrangemon(Monitor *m)
 {
-    Client *c;
+	Client *c;
 
 	strncpy(m->ltsymbol, m->lt[m->sellt]->symbol, sizeof m->ltsymbol);
 	if (m->lt[m->sellt]->arrange)
@@ -509,7 +519,7 @@ buttonpress(XEvent *e)
 	click = ClkRootWin;
 	/* focus monitor if necessary */
 	if ((m = wintomon(ev->window)) && m != selmon
-	    && (focusonwheel || (ev->button != Button4 && ev->button != Button5))) {
+		&& (focusonwheel || (ev->button != Button4 && ev->button != Button5))) {
 		unfocus(selmon->sel, 1);
 		selmon = m;
 		focus(NULL);
@@ -599,7 +609,7 @@ cleanup(void)
 		free(systray);
 	}
 
-    for (i = 0; i < CurLast; i++)
+	for (i = 0; i < CurLast; i++)
 		drw_cur_free(drw, cursor[i]);
 	for (i = 0; i < LENGTH(colors) + 1; i++)
 		free(scheme[i]);
@@ -958,13 +968,13 @@ drawstatusbar(Monitor *m, int bh, char* stext) {
 					char buf[8];
 					memcpy(buf, (char*)text+i+1, 7);
 					buf[7] = '\0';
-					drw_clr_create(drw, &drw->scheme[ColFg], buf);
+					drw_clr_create(drw, &drw->scheme[ColFg], buf, OPAQUE);
 					i += 7;
 				} else if (text[i] == 'b') {
 					char buf[8];
 					memcpy(buf, (char*)text+i+1, 7);
 					buf[7] = '\0';
-					drw_clr_create(drw, &drw->scheme[ColBg], buf);
+					drw_clr_create(drw, &drw->scheme[ColBg], buf, OPAQUE);
 					i += 7;
 				} else if (text[i] == 'd') {
 					drw->scheme[ColFg] = scheme[SchemeSec][ColFg];
@@ -1220,7 +1230,7 @@ getatomprop(Client *c, Atom prop)
 	Atom da, atom = None;
 
 	/* FIXME getatomprop should return the number of items and a pointer to
-	 * the stored data instead of this workaround */
+	* the stored data instead of this workaround */
 	Atom req = XA_ATOM;
 	if (prop == xatom[XembedInfo])
 		req = xatom[XembedInfo];
@@ -1362,9 +1372,9 @@ grabkeys(void)
 				if (keys[i].keysym == syms[(k - start) * skip])
 					for (j = 0; j < LENGTH(modifiers); j++)
 						XGrabKey(dpy, k,
-							 keys[i].mod | modifiers[j],
-							 root, True,
-							 GrabModeAsync, GrabModeAsync);
+							keys[i].mod | modifiers[j],
+							root, True,
+							GrabModeAsync, GrabModeAsync);
 		XFree(syms);
 	}
 }
@@ -1589,11 +1599,11 @@ movemouse(const Arg *arg)
 				while (1) {
 					if (cc == 0) break;
 					if(
-					 cc != c && !cc->isfloating && ISVISIBLE(cc) &&
-					 ev.xmotion.x_root > cc->x &&
-					 ev.xmotion.x_root < cc->x + cc->w &&
-					 ev.xmotion.y_root > cc->y &&
-					 ev.xmotion.y_root < cc->y + cc->h ) {
+					cc != c && !cc->isfloating && ISVISIBLE(cc) &&
+					ev.xmotion.x_root > cc->x &&
+					ev.xmotion.x_root < cc->x + cc->w &&
+					ev.xmotion.y_root > cc->y &&
+					ev.xmotion.y_root < cc->y + cc->h ) {
 						break;
 					}
 
@@ -1772,7 +1782,7 @@ propertynotify(XEvent *e)
 		updatesystray();
 	}
 
-    if ((ev->window == root) && (ev->atom == XA_WM_NAME))
+	if ((ev->window == root) && (ev->atom == XA_WM_NAME))
 		updatestatus();
 	else if (ev->state == PropertyDelete)
 		return; /* ignore */
@@ -2052,7 +2062,7 @@ sendevent(Window w, Atom proto, int mask, long d0, long d1, long d2, long d3, lo
 	else {
 		exists = True;
 		mt = proto;
-    }
+	}
 
 	if (exists) {
 		ev.type = ClientMessage;
@@ -2164,7 +2174,8 @@ setup(void)
 	sw = DisplayWidth(dpy, screen);
 	sh = DisplayHeight(dpy, screen);
 	root = RootWindow(dpy, screen);
-	drw = drw_create(dpy, screen, root, sw, sh);
+	xinitvisual();
+	drw = drw_create(dpy, screen, root, sw, sh, visual, depth, cmap);
 	if (!drw_fontset_create(drw, fonts, LENGTH(fonts)))
 		die("no fonts could be loaded.");
 	lrpad = drw->fonts->h;
@@ -2177,12 +2188,13 @@ setup(void)
 	wmatom[WMState] = XInternAtom(dpy, "WM_STATE", False);
 	wmatom[WMTakeFocus] = XInternAtom(dpy, "WM_TAKE_FOCUS", False);
 	netatom[NetActiveWindow] = XInternAtom(dpy, "_NET_ACTIVE_WINDOW", False);
-   netatom[NetSupported] = XInternAtom(dpy, "_NET_SUPPORTED", False);
+	netatom[NetSupported] = XInternAtom(dpy, "_NET_SUPPORTED", False);
 	netatom[NetSystemTray] = XInternAtom(dpy, "_NET_SYSTEM_TRAY_S0", False);
 	netatom[NetSystemTrayOP] = XInternAtom(dpy, "_NET_SYSTEM_TRAY_OPCODE", False);
 	netatom[NetSystemTrayOrientation] = XInternAtom(dpy, "_NET_SYSTEM_TRAY_ORIENTATION", False);
 	netatom[NetSystemTrayOrientationHorz] = XInternAtom(dpy, "_NET_SYSTEM_TRAY_ORIENTATION_HORZ", False);
-    netatom[NetWMName] = XInternAtom(dpy, "_NET_WM_NAME", False);
+	netatom[NetSystemTrayVisual] = XInternAtom(dpy, "_NET_SYSTEM_TRAY_VISUAL", False);
+	netatom[NetWMName] = XInternAtom(dpy, "_NET_WM_NAME", False);
 	netatom[NetWMState] = XInternAtom(dpy, "_NET_WM_STATE", False);
 	netatom[NetWMCheck] = XInternAtom(dpy, "_NET_SUPPORTING_WM_CHECK", False);
 	netatom[NetWMFullscreen] = XInternAtom(dpy, "_NET_WM_STATE_FULLSCREEN", False);
@@ -2197,15 +2209,15 @@ setup(void)
 	xatom[Manager] = XInternAtom(dpy, "MANAGER", False);
 	xatom[Xembed] = XInternAtom(dpy, "_XEMBED", False);
 	xatom[XembedInfo] = XInternAtom(dpy, "_XEMBED_INFO", False);
-    /* init cursors */
+	/* init cursors */
 	cursor[CurNormal] = drw_cur_create(drw, XC_left_ptr);
 	cursor[CurResize] = drw_cur_create(drw, XC_sizing);
 	cursor[CurMove] = drw_cur_create(drw, XC_fleur);
 	/* init appearance */
 	scheme = ecalloc(LENGTH(colors) + 1, sizeof(Clr *));
-	scheme[LENGTH(colors)] = drw_scm_create(drw, colors[0], 3);
+	scheme[LENGTH(colors)] = drw_scm_create(drw, colors[0], alphas[0], 3);
 	for (i = 0; i < LENGTH(colors); i++)
-		scheme[i] = drw_scm_create(drw, colors[i], 3);
+	scheme[i] = drw_scm_create(drw, colors[i], alphas[i], 3);
 	/* init system tray */
 	updatesystray();
 	/* init bars */
@@ -2432,8 +2444,8 @@ togglefloating(const Arg *arg)
 void
 togglefullscr(const Arg *arg)
 {
-  if(selmon->sel)
-    setfullscreen(selmon->sel, !selmon->sel->isfullscreen);
+	if(selmon->sel)
+		setfullscreen(selmon->sel, !selmon->sel->isfullscreen);
 }
 
 void
@@ -2578,7 +2590,7 @@ unmapnotify(XEvent *e)
 	}
 	else if ((c = wintosystrayicon(ev->window))) {
 		/* KLUDGE! sometimes icons occasionally unmap their windows, but do
-		 * _not_ destroy them. We map those windows back */
+		* _not_ destroy them. We map those windows back */
 		XMapRaised(dpy, c->win);
 		updatesystray();
 	}
@@ -2590,9 +2602,11 @@ updatebars(void)
 	unsigned int w;
 	Monitor *m;
 	XSetWindowAttributes wa = {
-		.override_redirect = True,
-		.background_pixmap = ParentRelative,
-		.event_mask = ButtonPressMask|ExposureMask
+	.override_redirect = True,
+	.background_pixel = 0,
+	.border_pixel = 0,
+	.colormap = cmap,
+	.event_mask = ButtonPressMask|ExposureMask
 	};
 	XClassHint ch = {"dwm", "dwm"};
 	for (m = mons; m; m = m->next) {
@@ -2601,9 +2615,9 @@ updatebars(void)
 		w = m->ww;
 		if (showsystray && m == systraytomon(m))
 			w -= getsystraywidth();
-		m->barwin = XCreateWindow(dpy, root, m->wx, m->by, w, bh, 0, DefaultDepth(dpy, screen),
-				CopyFromParent, DefaultVisual(dpy, screen),
-				CWOverrideRedirect|CWBackPixmap|CWEventMask, &wa);
+		m->barwin = XCreateWindow(dpy, root, m->wx, m->by, m->ww, bh, 0, depth,
+				InputOutput, visual,
+				CWOverrideRedirect|CWBackPixel|CWBorderPixel|CWColormap|CWEventMask, &wa);
 		XDefineCursor(dpy, m->barwin, cursor[CurNormal]->cursor);
 		if (showsystray && m == systraytomon(m))
 			XMapRaised(dpy, systray->win);
@@ -2844,13 +2858,19 @@ updatesystrayiconstate(Client *i, XPropertyEvent *ev)
 void
 updatesystray(void)
 {
-	XSetWindowAttributes wa;
 	XWindowChanges wc;
 	Client *i;
 	Monitor *m = systraytomon(NULL);
 	unsigned int x = m->mx + m->mw;
 	unsigned int sw = TEXTW(stext) - lrpad + systrayspacing;
 	unsigned int w = 1;
+	XSetWindowAttributes wa = {
+		.border_pixel = 0,
+		.colormap = cmap,
+		.event_mask = ButtonPressMask | ExposureMask,
+		.override_redirect = True,
+		.background_pixel = 0
+	};
 
 	if (!showsystray)
 		return;
@@ -2860,16 +2880,24 @@ updatesystray(void)
 		/* init systray */
 		if (!(systray = (Systray *)calloc(1, sizeof(Systray))))
 			die("fatal: could not malloc() %u bytes\n", sizeof(Systray));
-		systray->win = XCreateSimpleWindow(dpy, root, x, m->by, w, bh, 0, 0, scheme[SchemeSel][ColBg].pixel);
-		wa.event_mask        = ButtonPressMask | ExposureMask;
-		wa.override_redirect = True;
-		wa.background_pixel  = scheme[SchemeNorm][ColBg].pixel;
-		XSelectInput(dpy, systray->win, SubstructureNotifyMask);
-		XChangeProperty(dpy, systray->win, netatom[NetSystemTrayOrientation], XA_CARDINAL, 32,
-				PropModeReplace, (unsigned char *)&netatom[NetSystemTrayOrientationHorz], 1);
-		XChangeWindowAttributes(dpy, systray->win, CWEventMask|CWOverrideRedirect|CWBackPixel, &wa);
-		XMapRaised(dpy, systray->win);
-		XSetSelectionOwner(dpy, netatom[NetSystemTray], systray->win, CurrentTime);
+		
+	wa.override_redirect = True;
+	wa.event_mask = ButtonPressMask|ExposureMask;
+	wa.background_pixel = 0;
+	wa.border_pixel = 0;
+	wa.colormap = cmap;
+	systray->win = XCreateWindow(dpy, root, x, m->by, w, bh, 0, depth,
+					InputOutput, visual,
+					CWOverrideRedirect|CWBackPixel|CWBorderPixel|CWColormap|CWEventMask, &wa);
+	XSelectInput(dpy, systray->win, SubstructureNotifyMask);
+	XChangeProperty(dpy, systray->win, netatom[NetSystemTrayOrientation], XA_CARDINAL, 32,
+			PropModeReplace, (unsigned char *)&systrayorientation, 1);
+	XChangeProperty(dpy, systray->win, netatom[NetSystemTrayVisual], XA_VISUALID, 32,
+			PropModeReplace, (unsigned char *)&visual->visualid, 1);
+	XChangeProperty(dpy, systray->win, netatom[NetWMWindowType], XA_ATOM, 32,
+			PropModeReplace, (unsigned char *)&netatom[NetWMWindowTypeDock], 1);
+	XMapRaised(dpy, systray->win);
+	XSetSelectionOwner(dpy, netatom[NetSystemTray], systray->win, CurrentTime);
 		if (XGetSelectionOwner(dpy, netatom[NetSystemTray]) == systray->win) {
 			sendevent(root, xatom[Manager], StructureNotifyMask, CurrentTime, netatom[NetSystemTray], systray->win, 0, 0);
 			XSync(dpy, False);
@@ -2903,8 +2931,9 @@ updatesystray(void)
 	wc.x = x; wc.y = m->by; wc.width = w; wc.height = bh;
 	wc.stack_mode = Above; wc.sibling = m->barwin;
 	XConfigureWindow(dpy, systray->win, CWX|CWY|CWWidth|CWHeight|CWSibling|CWStackMode, &wc);
-	XMapWindow(dpy, systray->win);
-	XMapSubwindows(dpy, systray->win);
+	//XMapWindow(dpy, systray->win);
+	//XMapSubwindows(dpy, systray->win);
+	
 	/* redraw background */
 	XSetForeground(dpy, drw->gc, scheme[SchemeNorm][ColBg].pixel);
 	XFillRectangle(dpy, systray->win, drw->gc, 0, 0, w, bh);
@@ -3033,8 +3062,8 @@ wintomon(Window w)
 }
 
 /* There's no way to check accesses to destroyed windows, thus those cases are
- * ignored (especially on UnmapNotify's). Other types of errors call Xlibs
- * default error handler, which may call exit. */
+* ignored (especially on UnmapNotify's). Other types of errors call Xlibs
+* default error handler, which may call exit. */
 int
 xerror(Display *dpy, XErrorEvent *ee)
 {
@@ -3060,12 +3089,49 @@ xerrordummy(Display *dpy, XErrorEvent *ee)
 }
 
 /* Startup Error handler to check if another window manager
- * is already running. */
+* is already running. */
 int
 xerrorstart(Display *dpy, XErrorEvent *ee)
 {
 	die("dwm: another window manager is already running");
 	return -1;
+}
+
+void
+xinitvisual()
+{
+XVisualInfo *infos;
+XRenderPictFormat *fmt;
+int nitems;
+int i;
+
+XVisualInfo tpl = {
+	.screen = screen,
+	.depth = 32,
+	.class = TrueColor
+};
+long masks = VisualScreenMask | VisualDepthMask | VisualClassMask;
+
+infos = XGetVisualInfo(dpy, masks, &tpl, &nitems);
+visual = NULL;
+for(i = 0; i < nitems; i ++) {
+	fmt = XRenderFindVisualFormat(dpy, infos[i].visual);
+	if (fmt->type == PictTypeDirect && fmt->direct.alphaMask) {
+		visual = infos[i].visual;
+		depth = infos[i].depth;
+		cmap = XCreateColormap(dpy, root, visual, AllocNone);
+		useargb = 1;
+		break;
+	}
+}
+
+XFree(infos);
+
+if (! visual) {
+	visual = DefaultVisual(dpy, screen);
+	depth = DefaultDepth(dpy, screen);
+	cmap = DefaultColormap(dpy, screen);
+}
 }
 
 Monitor *
