@@ -4,47 +4,15 @@
 #include <string.h>
 #include <X11/Xlib.h>
 #include <X11/Xft/Xft.h>
+#define _USE_MATH_DEFINES
+#include <math.h>
+
+#include <cairo/cairo.h>
+#include <cairo/cairo-xlib.h>
+#include <pango/pangocairo.h>
 
 #include "drw.h"
 #include "util.h"
-
-#define UTF_INVALID 0xFFFD
-
-static int
-utf8decode(const char *s_in, long *u, int *err)
-{
-	static const unsigned char lens[] = {
-		/* 0XXXX */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-		/* 10XXX */ 0, 0, 0, 0, 0, 0, 0, 0,  /* invalid */
-		/* 110XX */ 2, 2, 2, 2,
-		/* 1110X */ 3, 3,
-		/* 11110 */ 4,
-		/* 11111 */ 0,  /* invalid */
-	};
-	static const unsigned char leading_mask[] = { 0x7F, 0x1F, 0x0F, 0x07 };
-	static const unsigned int overlong[] = { 0x0, 0x80, 0x0800, 0x10000 };
-
-	const unsigned char *s = (const unsigned char *)s_in;
-	int len = lens[*s >> 3];
-	*u = UTF_INVALID;
-	*err = 1;
-	if (len == 0)
-		return 1;
-
-	long cp = s[0] & leading_mask[len - 1];
-	for (int i = 1; i < len; ++i) {
-		if (s[i] == '\0' || (s[i] & 0xC0) != 0x80)
-			return i;
-		cp = (cp << 6) | (s[i] & 0x3F);
-	}
-	/* out of range, surrogate, overlong encoding */
-	if (cp > 0x10FFFF || (cp >> 11) == 0x1B || cp < overlong[len - 1])
-		return len;
-
-	*err = 0;
-	*u = cp;
-	return len;
-}
 
 Drw *
 drw_create(Display *dpy, int screen, Window root, unsigned int w, unsigned int h, Visual *visual, unsigned int depth, Colormap cmap)
@@ -59,9 +27,24 @@ drw_create(Display *dpy, int screen, Window root, unsigned int w, unsigned int h
 	drw->visual = visual;
 	drw->depth = depth;
 	drw->cmap = cmap;
-	drw->drawable = XCreatePixmap(dpy, root, w, h, depth);
-	drw->gc = XCreateGC(dpy, drw->drawable, 0, NULL);
-	XSetLineAttributes(dpy, drw->gc, 1, LineSolid, CapButt, JoinMiter);
+
+	// drw->surface = cairo_xlib_surface_create(
+    //     dpy, drw->root, visual, w, h
+    // );
+    // drw->cr = cairo_create(drw->surface);
+
+	drw->surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, w, h);
+	drw->cr = cairo_create(drw->surface);
+	cairo_set_line_width(drw->cr, 1);
+	
+	drw->surface_bg = cairo_xlib_surface_create(dpy, root, visual, w, h);
+	drw->cr_bg = cairo_create(drw->surface_bg);
+	cairo_set_line_width(drw->cr_bg, 1);
+
+
+	// drw->drawable = XCreatePixmap(dpy, root, w, h, depth);
+	// drw->gc = XCreateGC(dpy, drw->drawable, 0, NULL);
+	// XSetLineAttributes(dpy, drw->gc, 1, LineSolid, CapButt, JoinMiter);
 
 	return drw;
 }
@@ -74,356 +57,117 @@ drw_resize(Drw *drw, unsigned int w, unsigned int h)
 
 	drw->w = w;
 	drw->h = h;
-	if (drw->drawable)
-		XFreePixmap(drw->dpy, drw->drawable);
-	drw->drawable = XCreatePixmap(drw->dpy, drw->root, w, h, drw->depth);
+	// FIXME: surface is not being resized
+	if (drw->surface)
+		cairo_xlib_surface_set_size(drw->surface, w, h);
+	if (drw->surface_bg)
+		cairo_xlib_surface_set_size(drw->surface_bg, w, h);
 }
 
 void
 drw_free(Drw *drw)
 {
-	XFreePixmap(drw->dpy, drw->drawable);
-	XFreeGC(drw->dpy, drw->gc);
-	drw_fontset_free(drw->fonts);
+	cairo_destroy(drw->cr);
+    cairo_surface_destroy(drw->surface);
+	cairo_destroy(drw->cr_bg);
+    cairo_surface_destroy(drw->surface_bg);
+
 	free(drw);
 }
 
-/* This function is an implementation detail. Library users should use
- * drw_fontset_create instead.
- */
-static Fnt *
-xfont_create(Drw *drw, const char *fontname, FcPattern *fontpattern)
+void
+drw_rect(cairo_t *cr, int x, int y, unsigned int w, unsigned int h, double bw)
 {
-	Fnt *font;
-	XftFont *xfont = NULL;
-	FcPattern *pattern = NULL;
+    double r = 6;
 
-	if (fontname) {
-		/* Using the pattern found at font->xfont->pattern does not yield the
-		 * same substitution results as using the pattern returned by
-		 * FcNameParse; using the latter results in the desired fallback
-		 * behaviour whereas the former just results in missing-character
-		 * rectangles being drawn, at least with some fonts. */
-		if (!(xfont = XftFontOpenName(drw->dpy, drw->screen, fontname))) {
-			fprintf(stderr, "error, cannot load font from name: '%s'\n", fontname);
-			return NULL;
-		}
-		if (!(pattern = FcNameParse((FcChar8 *) fontname))) {
-			fprintf(stderr, "error, cannot parse font name to pattern: '%s'\n", fontname);
-			XftFontClose(drw->dpy, xfont);
-			return NULL;
-		}
-	} else if (fontpattern) {
-		if (!(xfont = XftFontOpenPattern(drw->dpy, fontpattern))) {
-			fprintf(stderr, "error, cannot load font from pattern.\n");
-			return NULL;
-		}
-	} else {
-		die("no font specified.");
-	}
+    cairo_move_to(cr, x + r, y);
+    cairo_line_to(cr, x + w - r, y);
+    cairo_arc(cr, x + w - r, y + r, r, -M_PI/2, 0);
+    cairo_line_to(cr, x + w, y + h - r);
+    cairo_arc(cr, x + w - r, y + h - r, r, 0, M_PI/2);
+    cairo_line_to(cr, x + r, y + h);
+    cairo_arc(cr, x + r, y + h - r, r, M_PI/2, M_PI);
+    cairo_line_to(cr, x, y + r);
+    cairo_arc(cr, x + r, y + r, r, M_PI, 3*M_PI/2);
+    cairo_close_path(cr);
 
-	font = ecalloc(1, sizeof(Fnt));
-	font->xfont = xfont;
-	font->pattern = pattern;
-	font->h = xfont->ascent + xfont->descent;
-	font->dpy = drw->dpy;
+    cairo_set_source_rgba(cr, 0.1, 0.1, 0.1, 1.0);
+	
+    cairo_fill_preserve(cr);
+    cairo_clip_preserve(cr);
 
-	return font;
-}
+    cairo_set_line_width(cr, bw * 2);
+    cairo_set_source_rgba(cr, 0.2, 0.2, 0.2, 1.0); // border color
+    cairo_stroke(cr);
 
-static void
-xfont_free(Fnt *font)
-{
-	if (!font)
-		return;
-	if (font->pattern)
-		FcPatternDestroy(font->pattern);
-	XftFontClose(font->dpy, font->xfont);
-	free(font);
-}
-
-Fnt*
-drw_fontset_create(Drw* drw, const char *fonts[], size_t fontcount)
-{
-	Fnt *cur, *ret = NULL;
-	size_t i;
-
-	if (!drw || !fonts)
-		return NULL;
-
-	for (i = 1; i <= fontcount; i++) {
-		if ((cur = xfont_create(drw, fonts[fontcount - i], NULL))) {
-			cur->next = ret;
-			ret = cur;
-		}
-	}
-	return (drw->fonts = ret);
+    cairo_reset_clip(cr);
 }
 
 void
-drw_fontset_free(Fnt *font)
-{
-	if (font) {
-		drw_fontset_free(font->next);
-		xfont_free(font);
-	}
+drw_text(Drw *drw, int x, int y, const char *text, const char *font_desc) {
+	PangoLayout *layout = pango_cairo_create_layout(drw->cr);
+
+    cairo_set_source_rgb(drw->cr, 1.0, 1.0, 1.0);
+	pango_layout_set_text(layout, text, -1);
+	PangoFontDescription *desc = pango_font_description_from_string(font_desc);
+	pango_layout_set_font_description(layout, desc);
+	pango_font_description_free(desc);
+
+	cairo_move_to(drw->cr, x, y);
+
+	pango_cairo_show_layout(drw->cr, layout);
+
+	g_object_unref(layout);
+}
+
+void clear_surface(cairo_t *cr, unsigned int w, unsigned int h) {
+	cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
+
+	cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
+	cairo_rectangle(cr, 0, 0, w, h);
+    cairo_fill(cr);
+
+	cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
 }
 
 void
-drw_clr_create(Drw *drw, Clr *dest, const char *clrname, unsigned int alpha)
-{
-	if (!drw || !dest || !clrname)
+drw_map(Drw *drw, Window win, int x, int y, unsigned int w, unsigned int h) {
+	if(!drw)
 		return;
 
-	if (!XftColorAllocName(drw->dpy, drw->visual, drw->cmap,
-	                       clrname, dest))
-		die("error, cannot allocate color '%s'", clrname);
+	cairo_set_operator(drw->cr_bg, CAIRO_OPERATOR_OVER);
 
-	dest->pixel = (dest->pixel & 0x00ffffffU) | (alpha << 24);
-}
+	cairo_set_source_surface(drw->cr_bg, drw->surface, 0, 0);
+	cairo_paint(drw->cr_bg);
 
-/* Wrapper to create color schemes. The caller has to call free(3) on the
- * returned color scheme when done using it. */
-Clr *
-drw_scm_create(Drw *drw, const char *clrnames[], const unsigned int alphas[], size_t clrcount)
-{
-	size_t i;
-	Clr *ret;
+	cairo_xlib_surface_set_drawable(drw->surface_bg, win, w, h);
 
-	/* need at least two colors for a scheme */
-	if (!drw || !clrnames || clrcount < 2 || !(ret = ecalloc(clrcount, sizeof(XftColor))))
-		return NULL;
+	// cairo_surface_write_to_png(drw->surface_bg, "./diowmsurfacebg.png");
+	// cairo_surface_write_to_png(drw->surface, "./diowmsurface.png");
 
-	for (i = 0; i < clrcount; i++)
-		drw_clr_create(drw, &ret[i], clrnames[i], alphas[i]);
-	return ret;
-}
-
-void
-drw_setfontset(Drw *drw, Fnt *set)
-{
-	if (drw)
-		drw->fonts = set;
-}
-
-void
-drw_setscheme(Drw *drw, Clr *scm)
-{
-	if (drw)
-		drw->scheme = scm;
-}
-
-void
-drw_rect(Drw *drw, int x, int y, unsigned int w, unsigned int h, int filled, int invert)
-{
-	if (!drw || !drw->scheme)
-		return;
-	XSetForeground(drw->dpy, drw->gc, invert ? drw->scheme[ColBg].pixel : drw->scheme[ColFg].pixel);
-	if (filled)
-		XFillRectangle(drw->dpy, drw->drawable, drw->gc, x, y, w, h);
-	else
-		XDrawRectangle(drw->dpy, drw->drawable, drw->gc, x, y, w - 1, h - 1);
-}
-
-int
-drw_text(Drw *drw, int x, int y, unsigned int w, unsigned int h, unsigned int lpad, const char *text, int invert)
-{
-	int ty, ellipsis_x = 0;
-	unsigned int tmpw, ew, ellipsis_w = 0, ellipsis_len, hash, h0, h1;
-	XftDraw *d = NULL;
-	Fnt *usedfont, *curfont, *nextfont;
-	int utf8strlen, utf8charlen, utf8err, render = x || y || w || h;
-	long utf8codepoint = 0;
-	const char *utf8str;
-	FcCharSet *fccharset;
-	FcPattern *fcpattern;
-	FcPattern *match;
-	XftResult result;
-	int charexists = 0, overflow = 0;
-	/* keep track of a couple codepoints for which we have no match. */
-	static unsigned int nomatches[128], ellipsis_width, invalid_width;
-	static const char invalid[] = "�";
-
-	if (!drw || (render && (!drw->scheme || !w)) || !text || !drw->fonts)
-		return 0;
-
-	if (!render) {
-		w = invert ? invert : ~invert;
-	} else {
-		XSetForeground(drw->dpy, drw->gc, drw->scheme[invert ? ColFg : ColBg].pixel);
-		XFillRectangle(drw->dpy, drw->drawable, drw->gc, x, y, w, h);
-		if (w < lpad)
-			return x + w;
-		d = XftDrawCreate(drw->dpy, drw->drawable, drw->visual, drw->cmap);
-		x += lpad;
-		w -= lpad;
-	}
-
-	usedfont = drw->fonts;
-	if (!ellipsis_width && render)
-		ellipsis_width = drw_fontset_getwidth(drw, "...");
-	if (!invalid_width && render)
-		invalid_width = drw_fontset_getwidth(drw, invalid);
-	while (1) {
-		ew = ellipsis_len = utf8err = utf8charlen = utf8strlen = 0;
-		utf8str = text;
-		nextfont = NULL;
-		while (*text) {
-			utf8charlen = utf8decode(text, &utf8codepoint, &utf8err);
-			for (curfont = drw->fonts; curfont; curfont = curfont->next) {
-				charexists = charexists || XftCharExists(drw->dpy, curfont->xfont, utf8codepoint);
-				if (charexists) {
-					drw_font_getexts(curfont, text, utf8charlen, &tmpw, NULL);
-					if (ew + ellipsis_width <= w) {
-						/* keep track where the ellipsis still fits */
-						ellipsis_x = x + ew;
-						ellipsis_w = w - ew;
-						ellipsis_len = utf8strlen;
-					}
-
-					if (ew + tmpw > w) {
-						overflow = 1;
-						/* called from drw_fontset_getwidth_clamp():
-						 * it wants the width AFTER the overflow
-						 */
-						if (!render)
-							x += tmpw;
-						else
-							utf8strlen = ellipsis_len;
-					} else if (curfont == usedfont) {
-						text += utf8charlen;
-						utf8strlen += utf8err ? 0 : utf8charlen;
-						ew += utf8err ? 0 : tmpw;
-					} else {
-						nextfont = curfont;
-					}
-					break;
-				}
-			}
-
-			if (overflow || !charexists || nextfont || utf8err)
-				break;
-			else
-				charexists = 0;
-		}
-
-		if (utf8strlen) {
-			if (render) {
-				ty = y + (h - usedfont->h) / 2 + usedfont->xfont->ascent;
-				XftDrawStringUtf8(d, &drw->scheme[invert ? ColBg : ColFg],
-				                  usedfont->xfont, x, ty, (XftChar8 *)utf8str, utf8strlen);
-			}
-			x += ew;
-			w -= ew;
-		}
-		if (utf8err && (!render || invalid_width < w)) {
-			if (render)
-				drw_text(drw, x, y, w, h, 0, invalid, invert);
-			x += invalid_width;
-			w -= invalid_width;
-		}
-		if (render && overflow)
-			drw_text(drw, ellipsis_x, y, ellipsis_w, h, 0, "...", invert);
-
-		if (!*text || overflow) {
-			break;
-		} else if (nextfont) {
-			charexists = 0;
-			usedfont = nextfont;
-		} else {
-			/* Regardless of whether or not a fallback font is found, the
-			 * character must be drawn. */
-			charexists = 1;
-
-			hash = (unsigned int)utf8codepoint;
-			hash = ((hash >> 16) ^ hash) * 0x21F0AAAD;
-			hash = ((hash >> 15) ^ hash) * 0xD35A2D97;
-			h0 = ((hash >> 15) ^ hash) % LENGTH(nomatches);
-			h1 = (hash >> 17) % LENGTH(nomatches);
-			/* avoid expensive XftFontMatch call when we know we won't find a match */
-			if (nomatches[h0] == utf8codepoint || nomatches[h1] == utf8codepoint)
-				goto no_match;
-
-			fccharset = FcCharSetCreate();
-			FcCharSetAddChar(fccharset, utf8codepoint);
-
-			if (!drw->fonts->pattern) {
-				/* Refer to the comment in xfont_create for more information. */
-				die("the first font in the cache must be loaded from a font string.");
-			}
-
-			fcpattern = FcPatternDuplicate(drw->fonts->pattern);
-			FcPatternAddCharSet(fcpattern, FC_CHARSET, fccharset);
-			FcPatternAddBool(fcpattern, FC_SCALABLE, FcTrue);
-
-			FcConfigSubstitute(NULL, fcpattern, FcMatchPattern);
-			FcDefaultSubstitute(fcpattern);
-			match = XftFontMatch(drw->dpy, drw->screen, fcpattern, &result);
-
-			FcCharSetDestroy(fccharset);
-			FcPatternDestroy(fcpattern);
-
-			if (match) {
-				usedfont = xfont_create(drw, NULL, match);
-				if (usedfont && XftCharExists(drw->dpy, usedfont->xfont, utf8codepoint)) {
-					for (curfont = drw->fonts; curfont->next; curfont = curfont->next)
-						; /* NOP */
-					curfont->next = usedfont;
-				} else {
-					xfont_free(usedfont);
-					nomatches[nomatches[h0] ? h1 : h0] = utf8codepoint;
-no_match:
-					usedfont = drw->fonts;
-				}
-			}
-		}
-	}
-	if (d)
-		XftDrawDestroy(d);
-
-	return x + (render ? w : 0);
-}
-
-void
-drw_map(Drw *drw, Window win, int x, int y, unsigned int w, unsigned int h)
-{
-	if (!drw)
-		return;
-
-	XCopyArea(drw->dpy, drw->drawable, win, drw->gc, x, y, w, h, x, y);
 	XSync(drw->dpy, False);
 }
 
-unsigned int
-drw_fontset_getwidth(Drw *drw, const char *text)
-{
-	if (!drw || !drw->fonts || !text)
-		return 0;
-	return drw_text(drw, 0, 0, 0, 0, 0, text, 0);
-}
+DDimension
+drw_get_textdim(Drw *drw, const char *text, const char *font_desc) {
+	DDimension s;
+	
+	PangoLayout *layout = pango_cairo_create_layout(drw->cr);
 
-unsigned int
-drw_fontset_getwidth_clamp(Drw *drw, const char *text, unsigned int n)
-{
-	unsigned int tmp = 0;
-	if (drw && drw->fonts && text && n)
-		tmp = drw_text(drw, 0, 0, 0, 0, 0, text, n);
-	return MIN(n, tmp);
-}
+    pango_layout_set_text(layout, text, -1);
+    PangoFontDescription *desc = pango_font_description_from_string(font_desc);
+    pango_layout_set_font_description(layout, desc);
 
-void
-drw_font_getexts(Fnt *font, const char *text, unsigned int len, unsigned int *w, unsigned int *h)
-{
-	XGlyphInfo ext;
+    int width, height;
+    pango_layout_get_size(layout, &width, &height);  // in Pango units (1 Pango unit = 1/1024 of a point)
+	
+    pango_font_description_free(desc);
+    g_object_unref(layout);
+	
+	s.width = width / PANGO_SCALE;
+	s.height = height / PANGO_SCALE;
 
-	if (!font || !text)
-		return;
-
-	XftTextExtentsUtf8(font->dpy, font->xfont, (XftChar8 *)text, len, &ext);
-	if (w)
-		*w = ext.xOff;
-	if (h)
-		*h = font->h;
+    return s;
 }
 
 Cur *

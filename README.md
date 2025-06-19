@@ -2,6 +2,14 @@ dwm - dynamic window manager
 ============================
 dwm is an extremely fast, small, and dynamic window manager for X.
 
+Testing
+-------
+
+    Xephyr :1 -screen 1280x720 -ac -br -noreset &
+
+    DISPLAY=:1 ./dwm
+
+
 Patches
 -------
 - [smartborders](https://dwm.suckless.org/patches/smartborders/dwm-smartborders-6.2.diff)
