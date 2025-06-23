@@ -541,7 +541,7 @@ static ModuleGroup modulegroups[] = {
 };
 
 static Bar bar = {
-	.dimensions = {0,0},
+	.dimensions = {0,1},
 	.style = (BoxStyle){
 		// .border_width = 2, 
 		.padding = {2, 10, 2, 10},
@@ -633,10 +633,10 @@ applysizehints(Client *c, int *x, int *y, int *w, int *h, int *bw, int interact)
 		if (*y + *h + 2 * *bw <= m->wy)
 			*y = m->wy;
 	}
-	if (*h < bh)
-		*h = bh;
-	if (*w < bh)
-		*w = bh;
+	if (*h < bar.dimensions.height)
+		*h = bar.dimensions.height;
+	if (*w < bar.dimensions.height)
+		*w = bar.dimensions.height;
 	if (resizehints || c->isfloating || !c->mon->lt[c->mon->sellt]->arrange) {
 		if (!c->hintsvalid)
 			updatesizehints(c);
@@ -855,8 +855,8 @@ clientmessage(XEvent *e)
 			systray->icons = c;
 			if (!XGetWindowAttributes(dpy, c->win, &wa)) {
 				/* use sane defaults */
-				wa.width = bh;
-				wa.height = bh;
+				wa.width = bar.dimensions.height;
+				wa.height = bar.dimensions.height;
 				wa.border_width = 0;
 			}
 			c->x = c->oldx = c->y = c->oldy = 0;
@@ -940,7 +940,7 @@ configurenotify(XEvent *e)
 		sw = ev->width;
 		sh = ev->height;
 		if (updategeom() || dirty) {
-			drw_resize(drw, sw, bh);
+			drw_resize(drw, sw, bar.dimensions.height);
 			updatebars();
 			for (m = mons; m; m = m->next) {
 				for (c = m->clients; c; c = c->next)
@@ -1307,9 +1307,16 @@ drawbar(Monitor *m)
 		 											modulegroups[modulegroup].style.padding.l + modulegroups[modulegroup].style.padding.r
 													- modulegroups[modulegroup].style.gap;
 
-		if (modulegroups[modulegroup].dimensions.height > bar.dimensions.height)
-			bar.dimensions.height = modulegroups[modulegroup].dimensions.height
-									+ bar.style.padding.t + bar.style.padding.b;
+		if (modulegroups[modulegroup].dimensions.height > bar.dimensions.height){
+			int newbarheight = modulegroups[modulegroup].dimensions.height
+			+ bar.style.padding.t + bar.style.padding.b;
+
+			if (bar.dimensions.height != newbarheight) {
+				bar.dimensions.height = newbarheight;
+				updatebarpos(m);
+				arrange(m);
+			}
+		}
 
 		resizebarwin(m);
 
@@ -2759,11 +2766,11 @@ togglebar(const Arg *arg)
 	if (showsystray) {
 		XWindowChanges wc;
 		if (!selmon->showbar)
-			wc.y = -bh;
+			wc.y = -bar.dimensions.height;
 		else if (selmon->showbar) {
 			wc.y = 0;
 			if (!selmon->topbar)
-				wc.y = selmon->mh - bh;
+				wc.y = selmon->mh - bar.dimensions.height;
 		}
 		XConfigureWindow(dpy, systray->win, CWY, &wc);
 	}
@@ -2960,7 +2967,7 @@ updatebars(void)
 		w = m->ww;
 		if (showsystray && m == systraytomon(m))
 			w -= getsystraywidth();
-		m->barwin = XCreateWindow(dpy, root, m->wx, m->by, m->ww, bh, 0, depth,
+		m->barwin = XCreateWindow(dpy, root, m->wx, m->by, m->ww, bar.dimensions.height, 0, depth,
 				InputOutput, visual,
 				CWOverrideRedirect|CWBackPixel|CWBorderPixel|CWColormap|CWEventMask, &wa);
 		XDefineCursor(dpy, m->barwin, cursor[CurNormal]->cursor);
@@ -2981,11 +2988,11 @@ updatebarpos(Monitor *m)
 	m->wy = m->my;
 	m->wh = m->mh;
 	if (m->showbar) {
-		m->wh -= bh;
+		m->wh -= bar.dimensions.height;
 		m->by = m->topbar ? m->wy : m->wy + m->wh;
-		m->wy = m->topbar ? m->wy + bh : m->wy;
+		m->wy = m->topbar ? m->wy + bar.dimensions.height : m->wy;
 	} else
-		m->by = -bh;
+		m->by = -bar.dimensions.height;
 }
 
 void
