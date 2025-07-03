@@ -44,6 +44,7 @@
 
 #include "drw.h"
 #include "util.h"
+#include "dynarray.h"
 
 /* macros */
 #define BUTTONMASK              (ButtonPressMask|ButtonReleaseMask)
@@ -286,6 +287,7 @@ static void zoom(const Arg *arg);
 
 /* variables */
 static Systray *systray = NULL;
+static Vec2 systraypos;
 static unsigned long systrayorientation = _NET_SYSTEM_TRAY_ORIENTATION_HORZ;
 static const char broken[] = "broken";
 static char stext[1024];
@@ -331,10 +333,7 @@ static Colormap cmap;
 /* configuration, allows nested code to access above variables */
 #include "config.h"
 
-typedef struct {
-    int x;
-    int y;
-} DVec2;
+
 
 enum alignment { Start, Center, End };
 
@@ -346,8 +345,7 @@ typedef struct {
 } BoxStyle;
 
 struct Module;
-typedef void (*ModDrawFunc)(struct Module *mod, enum alignment alignment, Monitor *m);
-typedef void (*ModSizeFunc)(struct Module *mod, enum alignment alignment);
+typedef Dimensions (*ModDrawFunc)(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw);
 
 typedef struct {
 	char **elements;
@@ -357,9 +355,8 @@ typedef struct {
 
 typedef struct Module {
 	ModDrawFunc drawfunc;
-	ModSizeFunc sizefunc;
 	ModuleChildren children;
-	DVec2 modulesize;
+	Vec2 modulesize;
 	BoxStyle style;
 } Module;
 
@@ -371,19 +368,20 @@ static char *boxtest[] = { "10:20 PM" };
 static char *boxtitle[] = { "1", "Window Title" };
 // static char *boxtest[] = { "<div fg=\"#ffffff\" bg=\"#000000\">Box</div>" };
 
-static void moddraw_tags(struct Module *mod, enum alignment, Monitor *m);
-static void modsize_tags(struct Module *mod, enum alignment);
-
+static Dimensions moduledraw_tags(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw);
+static Dimensions moduledraw_rect(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw);
+static Dimensions moduledraw_textrect(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw);
+static Dimensions moduledraw_systray(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw);
+	
 typedef struct {
-	Module modules[3];
-	int modules_length;
-	DDimension dimensions;
+	Module *modules;
+	Dimensions dimensions;
 	int nextelementxpos;
 	BoxStyle style;
 } ModuleGroup;
 
 typedef struct {
-	DDimension dimensions;
+	Dimensions dimensions;
 	BoxStyle style;
 } Bar;
 
@@ -393,152 +391,7 @@ enum ModuleGroupType {
 	ModuleGroupRight,
 };
 
-static ModuleGroup modulegroups[] = {
-	[ModuleGroupLeft] = (ModuleGroup){
-		.modules_length = 3,
-		.modules = {
-			(Module){
-				.drawfunc = moddraw_tags,
-				.sizefunc = modsize_tags,
-				.children = {
-					.elements = strings,
-					.num_elements = LENGTH(strings),
-					.style = {
-						.border_width = 2, 
-						.padding = {1, 6, 1, 6},
-						.alignitems = Start,
-						.gap = 0,
-					},
-				},
-				.modulesize = {.x=0,.y=0},
-				.style = {
-					.border_width = 2, 
-					.padding = {2, 2, 2, 2},
-					.alignitems = Start,
-					.gap = 2,
-				}
-			},
-			(Module){
-				.drawfunc = moddraw_tags,
-				.sizefunc = modsize_tags,
-				.children = {
-					.elements = strings,
-					.num_elements = LENGTH(strings),
-					.style = {
-						.border_width = 2, 
-						.padding = {1, 6, 1, 6},
-						.alignitems = Start,
-						.gap = 0,
-					},
-				},
-				.modulesize = {.x=0,.y=0},
-				.style = {
-					.border_width = 2, 
-					.padding = {2, 2, 2, 2},
-					.alignitems = Start,
-					.gap = 2,
-				}
-			},
-			(Module){
-				.drawfunc = moddraw_tags,
-				.sizefunc = modsize_tags,
-				.children = {
-					.elements = strings,
-					.num_elements = LENGTH(strings),
-					.style = {
-						.border_width = 2, 
-						.padding = {1, 6, 1, 6},
-						.alignitems = Start,
-						.gap = 0,
-					},
-				},
-				.modulesize = {.x=0,.y=0},
-				.style = {
-					.border_width = 2, 
-					.padding = {2, 2, 2, 2},
-					.alignitems = Start,
-					.gap = 2,
-				}
-			},
-		},
-		.dimensions = {0,0},
-		.nextelementxpos = 0,
-		.style = {
-			.border_width = 2, 
-			.padding = {2, 2, 2, 2},
-			.alignitems = End,
-			.gap = 2,
-		},
-	},
-	[ModuleGroupCenter] = (ModuleGroup){
-		.modules_length = 1,
-		.modules = {
-			(Module){
-				.drawfunc = moddraw_tags,
-				.sizefunc = modsize_tags,
-				.children = {
-					.elements = boxtitle,
-					.num_elements = LENGTH(boxtitle),
-					.style = {
-						.border_width = 2, 
-						.padding = {1, 6, 1, 6},
-						.alignitems = Start,
-						.gap = 0,
-					},
-				},
-				.modulesize = {.x=0,.y=0},
-				.style = {
-					.border_width = 2, 
-					.padding = {2, 2, 2, 2},
-					.alignitems = Start,
-					.gap = 2,
-				}
-			},
-		},
-		.dimensions = {0,0},
-		.nextelementxpos = 0,
-		.style = {
-			.border_width = 2, 
-			.padding = {2, 2, 2, 2},
-			.alignitems = End,
-			.gap = 2,
-		},
-	},
-	[ModuleGroupRight] = (ModuleGroup){
-		.modules_length = 1,
-		.modules = {
-			(Module){
-				.drawfunc = moddraw_tags,
-				.sizefunc = modsize_tags,
-				.children = {
-					.elements = boxtest,
-					.num_elements = LENGTH(boxtest),
-					.style = {
-						.border_width = 2, 
-						.padding = {1, 6, 1, 6},
-						.alignitems = Start,
-						.gap = 0,
-					},
-				},
-				.modulesize = {.x=0,.y=0},
-				.style = {
-					.border_width = 2, 
-					.padding = {2, 2, 2, 2},
-					.alignitems = Start,
-					.gap = 2,
-				}
-			},
-		},
-		.dimensions = {0,0},
-		.nextelementxpos = 0,
-		.style = {
-			.border_width = 2, 
-			.padding = {2, 2, 2, 2},
-			.alignitems = End,
-			.gap = 2,
-		},
-	},
-};
+static ModuleGroup modulegroups[3];
 
 static Bar bar = {
 	.dimensions = {0,1},
@@ -548,6 +401,115 @@ static Bar bar = {
 		.alignitems = Center,
 	},
 };
+
+void
+setupbarmodules()
+{
+	for (int i = 0; i < LENGTH(modulegroups); i++) {
+		modulegroups[i] = (ModuleGroup){
+			.modules = dynarray_create(Module),
+			.dimensions = {0,0},
+			.nextelementxpos = 0,
+			.style = {
+				.border_width = 2, 
+				.padding = {2, 2, 2, 2},
+				.alignitems = Center,
+				.gap = 4,
+			},
+		};
+	}
+
+	Module module_tags = (Module){
+		.drawfunc = moduledraw_tags,
+		.children = {
+			.elements = boxtest,
+			.num_elements = LENGTH(boxtest),
+			.style = {
+				.border_width = 2, 
+				.padding = {1, 6, 1, 6},
+				.alignitems = Start,
+				.gap = 0,
+			},
+		},
+		.modulesize = {.x=0,.y=0},
+		.style = {
+			.border_width = 2, 
+			.padding = {2, 2, 2, 2},
+			.alignitems = Start,
+			.gap = 2,
+		}
+	};
+
+	Module module_rect = (Module){
+		.drawfunc = moduledraw_rect,
+		.children = {
+			.elements = boxtest,
+			.num_elements = LENGTH(boxtest),
+			.style = {
+				.border_width = 2, 
+				.padding = {1, 6, 1, 6},
+				.alignitems = Start,
+				.gap = 0,
+			},
+		},
+		.modulesize = {.x=0,.y=0},
+		.style = {
+			.border_width = 2, 
+			.padding = {2, 2, 2, 2},
+			.alignitems = Start,
+			.gap = 2,
+		}
+	};
+
+	Module module_textrect = (Module){
+		.drawfunc = moduledraw_textrect,
+		.children = {
+			.elements = boxtest,
+			.num_elements = LENGTH(boxtest),
+			.style = {
+				.border_width = 2, 
+				.padding = {1, 6, 1, 6},
+				.alignitems = Start,
+				.gap = 0,
+			},
+		},
+		.modulesize = {.x=0,.y=0},
+		.style = {
+			.border_width = 2, 
+			.padding = {2, 2, 2, 2},
+			.alignitems = Start,
+			.gap = 2,
+		}
+	};
+
+	Module module_systray = (Module){
+		.drawfunc = moduledraw_systray,
+		.children = {
+			.elements = boxtest,
+			.num_elements = LENGTH(boxtest),
+			.style = {
+				.border_width = 2, 
+				.padding = {1, 6, 1, 6},
+				.alignitems = Start,
+				.gap = 0,
+			},
+		},
+		.modulesize = {.x=0,.y=0},
+		.style = {
+			.border_width = 2, 
+			.padding = {0, 0, 0, 0},
+			.alignitems = Start,
+			.gap = 2,
+		}
+	};
+	
+	dynarray_push(modulegroups[ModuleGroupLeft].modules, module_tags);
+	dynarray_push(modulegroups[ModuleGroupLeft].modules, module_rect);
+	dynarray_push(modulegroups[ModuleGroupCenter].modules, module_textrect);
+	dynarray_push(modulegroups[ModuleGroupCenter].modules, module_rect);
+	dynarray_push(modulegroups[ModuleGroupRight].modules, module_rect);
+	dynarray_push(modulegroups[ModuleGroupRight].modules, module_systray);
+}
 
 struct Pertag {
 	unsigned int curtag, prevtag; /* current and previous tag */
@@ -743,21 +705,7 @@ buttonpress(XEvent *e)
 		focus(NULL);
 	}
 	if (ev->window == selmon->barwin) {
-		i = x = 0;
-		if (i < LENGTH(tags)) {
-			click = ClkTagBar;
-			arg.ui = 1 << i;
-		} /*else if (ev->x < x + TEXTW(selmon->ltsymbol))
-			click = ClkLtSymbol;*/
-		else if (ev->x > selmon->ww - statusw - getsystraywidth()) {
-			x = selmon->ww - statusw;
-			click = ClkStatusText;
-
-			char *text, *s, ch;
-			statussig = 0;
-			
-		} else
-			click = ClkWinTitle;
+		// TODO: handle bar clicks here
 	} else if ((c = wintoclient(ev->window))) {
 		if (focusonwheel || (ev->button != Button4 && ev->button != Button5))
 			focus(c);
@@ -809,6 +757,9 @@ cleanup(void)
 //  for (i = 0; i < LENGTH(colors) + 1; i++)
 // 	 free(scheme[i]);
 //  free(scheme);
+	// for (int i = 0; i < LENGTH(modulegroups); i++) {
+	// 	dynarray_destroy(modulegroups[i].modules);
+	// }
 	XDestroyWindow(dpy, wmcheckwin);
 	drw_free(drw);
 	XSync(dpy, False);
@@ -881,7 +832,7 @@ clientmessage(XEvent *e)
 			sendevent(c->win, netatom[Xembed], StructureNotifyMask, CurrentTime, XEMBED_WINDOW_ACTIVATE, 0 , systray->win, XEMBED_EMBEDDED_VERSION);
 			sendevent(c->win, netatom[Xembed], StructureNotifyMask, CurrentTime, XEMBED_MODALITY_ON, 0 , systray->win, XEMBED_EMBEDDED_VERSION);
 			XSync(dpy, False);
-			resizebarwin(selmon);
+			// resizebarwin(selmon);
 			updatesystray(1);
 			setclientstate(c, NormalState);
 		}
@@ -946,7 +897,7 @@ configurenotify(XEvent *e)
 				for (c = m->clients; c; c = c->next)
 					if (c->isfullscreen)
 						resizeclient(c, m->mx, m->my, m->mw, m->mh, 0);
-				resizebarwin(m);
+				// resizebarwin(m);
 			}
 			focus(NULL);
 			arrange(NULL);
@@ -1049,7 +1000,7 @@ destroynotify(XEvent *e)
 		unmanage(c, 1);
 	else if ((c = wintosystrayicon(ev->window))) {
 		removesystrayicon(c);
-		resizebarwin(selmon);
+		// resizebarwin(selmon);
 		updatesystray(1);
 	}
 }
@@ -1093,13 +1044,29 @@ dirtomon(int dir)
 }
 
 void
-moddraw_tags(struct Module *mod, enum alignment alignment, Monitor *m)
+moduledraw(struct Module *mod, enum alignment alignment, Monitor *m, Client *c, int shoulddraw)
 {
-	unsigned int x = 0, y = 0;
-	unsigned int tagsgap = mod->style.gap;
-	unsigned int offset = 0;
+	Dimensions modsize = mod->drawfunc(mod, m, c, (Vec2){0,0}, 0);
+	if (!shoulddraw) {
+		if (modsize.width != 0 || modsize.width != 0) {
+			int moduleheight = modsize.height + (mod->style.border_width * 2) + (modulegroups[alignment].style.border_width * 2) +
+			modulegroups[alignment].style.padding.t + modulegroups[alignment].style.padding.b +
+			mod->style.padding.t + mod->style.padding.b;
+			
+			if (moduleheight > modulegroups[alignment].dimensions.height)
+				modulegroups[alignment].dimensions.height = moduleheight;
+		
+			int modulewidth = modsize.width + (mod->style.border_width * 2)
+			+ mod->style.padding.l + mod->style.padding.r;
+			
+			modulegroups[alignment].dimensions.width += modulewidth + modulegroups[alignment].style.gap;
+		}
+		return;
+	}
+
+	unsigned int groupalignmentoffset = 0;
 	
-	int moduleheight = mod->modulesize.y
+	int moduleheight = modsize.height
 	+ (mod->style.border_width * 2) + (modulegroups[alignment].style.border_width * 2)
 	+ mod->style.padding.t + mod->style.padding.b;
 
@@ -1111,201 +1078,209 @@ moddraw_tags(struct Module *mod, enum alignment alignment, Monitor *m)
 			baralignitemsyoffset = 0;
 			break;
 		case Center:
-			baralignitemsyoffset = ((bar.dimensions.height - bar.style.padding.t - bar.style.padding.b) - modulegroups[alignment].dimensions.height) / 2;
+			baralignitemsyoffset = ((bar.dimensions.height - bar.style.padding.t - bar.style.padding.b) - modulegroups[alignment].dimensions.height) / 2;;
 			break;
 		case End:
 			baralignitemsyoffset = (bar.dimensions.height - bar.style.padding.t - bar.style.padding.b) - modulegroups[alignment].dimensions.height;
 			break;
 	}
 
+	int test = (modulegroups[alignment].dimensions.height 
+		- (modulegroups[alignment].style.padding.t)
+		- (modulegroups[alignment].style.padding.b)) - moduleheight;
+
 	switch (modulegroups[alignment].style.alignitems) {
 		case Start:
 			alignitemsyoffset = 0 + bar.style.padding.t;
 			break;
 		case Center:
-			alignitemsyoffset = (modulegroups[alignment].dimensions.height - moduleheight) / 2 
-			- (modulegroups[alignment].style.padding.t / 2)
-			- (modulegroups[alignment].style.padding.b / 2);
+			alignitemsyoffset = test / 2 + bar.style.padding.t;
 			break;
 		case End:
-			alignitemsyoffset = modulegroups[alignment].dimensions.height - moduleheight
-			- modulegroups[alignment].style.padding.t
-			- modulegroups[alignment].style.padding.b
-			+ bar.style.padding.t;
+			alignitemsyoffset = test + bar.style.padding.t;
 			break;
 	}
 
 	switch (alignment) {
 		case ModuleGroupLeft:
-			offset = 0 + bar.style.padding.l;
+			groupalignmentoffset = 0 + bar.style.padding.l;
 			break;
 		case ModuleGroupCenter:
-			offset = (m->ww / 2) - (modulegroups[alignment].dimensions.width / 2);
+			groupalignmentoffset = (m->ww / 2) - (modulegroups[alignment].dimensions.width / 2);
 			break;
 		case ModuleGroupRight:
-			// offset = m->ww - 500;
-			offset = m->ww - modulegroups[alignment].dimensions.width - bar.style.padding.r;
+			groupalignmentoffset = m->ww - modulegroups[alignment].dimensions.width 
+			- bar.style.padding.r;
 			break;
 	}
 	
+	Vec2 modpos = (Vec2){
+		.x = modulegroups[alignment].nextelementxpos + mod->style.border_width + modulegroups[alignment].style.border_width +
+		mod->style.padding.l + modulegroups[alignment].style.padding.l +
+		groupalignmentoffset,
+		.y = mod->style.border_width + modulegroups[alignment].style.border_width +
+		mod->style.padding.t + modulegroups[alignment].style.padding.t + 
+		alignitemsyoffset + baralignitemsyoffset,
+	};
 	
-	drw_rect(drw->cr,
-		modulegroups[alignment].nextelementxpos + modulegroups[alignment].style.border_width + 
-		modulegroups[alignment].style.padding.l +
-		offset
-		,
-		modulegroups[alignment].style.border_width + 
-		modulegroups[alignment].style.padding.t +
-		alignitemsyoffset + baralignitemsyoffset
-		,
-		mod->modulesize.x + (mod->style.border_width * 2) +
-		mod->style.padding.l + mod->style.padding.r
-		,
-		mod->modulesize.y + (mod->style.border_width * 2) +
-		mod->style.padding.t + mod->style.padding.b
-		,
-		mod->style.border_width
-	);
-	
-	unsigned int i;
-	for (i = 0; i < mod->children.num_elements; i++) {
-		DDimension textdim = drw_get_textdim(drw, mod->children.elements[i], user_style.font_desc_temp); 
-
-		drw_rect(drw->cr,
-			modulegroups[alignment].nextelementxpos + x + mod->style.border_width + modulegroups[alignment].style.border_width +
-			mod->style.padding.l + modulegroups[alignment].style.padding.l +
-			offset
+	if (modsize.width != 0 || modsize.width != 0) {
+		drw_rect(drw,
+			modulegroups[alignment].nextelementxpos + modulegroups[alignment].style.border_width + 
+			modulegroups[alignment].style.padding.l +
+			groupalignmentoffset
 			,
-			mod->style.border_width + modulegroups[alignment].style.border_width +
-			mod->style.padding.t + modulegroups[alignment].style.padding.t + 
+			modulegroups[alignment].style.border_width + 
+			modulegroups[alignment].style.padding.t +
 			alignitemsyoffset + baralignitemsyoffset
 			,
-			textdim.width + (mod->children.style.border_width * 2) +
-			mod->children.style.padding.l + mod->children.style.padding.r
+			modsize.width + (mod->style.border_width * 2) +
+			mod->style.padding.l + mod->style.padding.r
 			,
-			textdim.height + (mod->children.style.border_width * 2) +
-			mod->children.style.padding.b + mod->children.style.padding.t
+			modsize.height + (mod->style.border_width * 2) +
+			mod->style.padding.t + mod->style.padding.b
 			,
-			mod->children.style.border_width
+			mod->style.border_width
 		);
-		drw_text(drw, 
-			modulegroups[alignment].nextelementxpos + x + 
-			mod->children.style.padding.l + mod->style.padding.l + modulegroups[alignment].style.padding.l +
-			mod->style.border_width + mod->children.style.border_width + modulegroups[alignment].style.border_width +
-			offset
-			,
-			mod->children.style.padding.t + mod->style.padding.t + modulegroups[alignment].style.padding.t +
-			mod->style.border_width + mod->children.style.border_width + modulegroups[alignment].style.border_width + 
-			alignitemsyoffset + baralignitemsyoffset
-			, mod->children.elements[i], user_style.font_desc_temp);
 		
-		if (i == mod->children.num_elements - 1){
-			tagsgap = 0;
-		}
-		x += textdim.width + mod->children.style.padding.r + mod->children.style.padding.l + (mod->children.style.border_width * 2) + tagsgap;
+		int modulewidth = modsize.width + (mod->style.border_width * 2)
+			+ mod->style.padding.l + mod->style.padding.r;
+	
+		modulegroups[alignment].nextelementxpos += modulewidth + modulegroups[alignment].style.gap;
 	}
 
-	modulegroups[alignment].nextelementxpos += x + (mod->style.border_width * 2) + mod->style.padding.l + mod->style.padding.r + modulegroups[alignment].style.gap;
+	Dimensions _modsize = mod->drawfunc(mod, m, c, modpos, shoulddraw);
 }
 
-void
-modsize_tags(struct Module *mod,  enum alignment alignment)
+Dimensions
+moduledraw_rect(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw)
 {
-	unsigned int tagsgap = mod->style.gap;
-	
-	mod->modulesize.x = 0;
-	mod->modulesize.y = 0;
-	
-	for (int i = 0; i < mod->children.num_elements; i++) {
-		DDimension textdim = drw_get_textdim(drw, mod->children.elements[i], user_style.font_desc_temp); 
-
-		if (i == mod->children.num_elements - 1){
-			tagsgap = 0;
-		}
-
-		mod->modulesize.x += textdim.width + mod->children.style.padding.r + mod->children.style.padding.l + (mod->children.style.border_width * 2) + tagsgap;
-		mod->modulesize.y = textdim.height + mod->children.style.padding.t + mod->children.style.padding.b + (mod->children.style.border_width * 2);
+	unsigned int width = 20, height = 20;
+	if (shoulddraw) {
+		drw_rect(drw, pos.x, pos.y, width, height, 1);
 	}
 
-	int modulewidth = mod->modulesize.x + (mod->style.border_width * 2) +
-				mod->style.padding.l + mod->style.padding.r;
+	return (Dimensions){
+		.width = width,
+		.height = height,
+	};
+};
 
-	int moduleheight = mod->modulesize.y + (mod->style.border_width * 2) + (modulegroups[alignment].style.border_width * 2) +
-						modulegroups[alignment].style.padding.t + modulegroups[alignment].style.padding.b +
-						mod->style.padding.t + mod->style.padding.b;			
-						
-	modulegroups[alignment].dimensions.width += modulewidth + modulegroups[alignment].style.gap;
-	if (moduleheight > modulegroups[alignment].dimensions.height)
-		modulegroups[alignment].dimensions.height = moduleheight;
-}
+Dimensions
+moduledraw_tags(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw)
+{
+	unsigned int width = 0, height = 0;
+	unsigned int tagsgap = mod->style.gap;
+
+	for (int i = 0; i < LENGTH(tags); i++) {
+		Dimensions textdim = drw_get_textdim(drw, tags[i], user_style.font_desc_temp); 
+
+		if (shoulddraw) {
+		
+			drw_rect(drw, pos.x + width, pos.y,
+				textdim.width + (mod->children.style.border_width * 2) +
+				mod->children.style.padding.l + mod->children.style.padding.r
+				,
+				textdim.height + (mod->children.style.border_width * 2) +
+				mod->children.style.padding.b + mod->children.style.padding.t
+				, mod->children.style.border_width);
+			drw_text(drw, pos.x +
+				width + 
+				mod->children.style.padding.l +
+				mod->children.style.border_width
+				,
+				pos.y + mod->children.style.padding.t + mod->children.style.border_width
+				, tags[i], user_style.font_desc_temp);
+
+		}
+
+		if (i == LENGTH(tags) - 1) tagsgap = 0;
+
+		width += textdim.width + mod->children.style.padding.r + mod->children.style.padding.l + (mod->children.style.border_width * 2) + tagsgap;
+		height = textdim.height + mod->children.style.padding.t + mod->children.style.padding.b + (mod->children.style.border_width * 2);
+	}
+
+	return (Dimensions){
+		.width = width,
+		.height = height,
+	};
+};
+
+Dimensions
+moduledraw_textrect(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw)
+{
+	unsigned int width = 0, height = 0;
+
+	const char *text = m->sel->name;
+
+	if (text == NULL || *text == '\0')
+        return (Dimensions){0,0};
+
+	Dimensions textdim = drw_get_textdim(drw, text, user_style.font_desc_temp); 
+
+	width = textdim.width + (mod->children.style.border_width * 2) 
+	+ mod->children.style.padding.l + mod->children.style.padding.r;
+	height = textdim.height + (mod->children.style.border_width * 2) 
+	+ mod->children.style.padding.b + mod->children.style.padding.t;
+
+	if (shoulddraw) {
+		drw_rect(drw, pos.x, pos.y, width, height, mod->children.style.border_width);
+		drw_text(drw, 
+			pos.x + mod->children.style.padding.l + mod->children.style.border_width, 
+			pos.y + mod->children.style.padding.t + mod->children.style.border_width, 
+			text, user_style.font_desc_temp);
+	}
+
+	return (Dimensions){
+		.width = width,
+		.height = height,
+	};
+};
+
+Dimensions
+moduledraw_systray(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw)
+{
+	unsigned int width = getsystraywidth(), height = systrayiconsize;
+
+	systraypos = (Vec2){pos.x, pos.y};
+	if (shoulddraw && getsystraywidth() > 1) {
+		drw_rect(drw, pos.x, pos.y, width, height, 1);
+	}
+
+	if (getsystraywidth() == 1)
+		width = 0;
+	
+	return (Dimensions){
+		.width = width,
+		.height = height,
+	};
+};
 
 void
 drawbar(Monitor *m)
 {
 	int stw = 0;
+	unsigned occ = 0, urg = 0;
 	Client *c;
 
 	if (!m->showbar)
 		return;
 
-	cairo_set_operator(drw->cr, CAIRO_OPERATOR_CLEAR);
-	cairo_set_operator(drw->cr_bg, CAIRO_OPERATOR_CLEAR);
-
-	cairo_set_source_rgb(drw->cr, 1.0, 1.0, 1.0);
-	cairo_rectangle(drw->cr, 0, 0, m->ww, bar.dimensions.height);
-    cairo_fill(drw->cr);
-
-	cairo_set_source_rgb(drw->cr_bg, 1.0, 1.0, 1.0);
-	cairo_rectangle(drw->cr_bg, 0, 0, m->ww, bar.dimensions.height);
-    cairo_fill(drw->cr_bg);
-
-	cairo_set_operator(drw->cr, CAIRO_OPERATOR_OVER);
-	cairo_set_operator(drw->cr_bg, CAIRO_OPERATOR_OVER);
-
-	if(showsystray && m == systraytomon(m))
-		stw = getsystraywidth();
-
-	cairo_set_source_rgba(drw->cr_bg, 0.1, 0.1, 0.1, 1.0);
-	cairo_rectangle(drw->cr_bg, 0, 0, m->ww, bar.dimensions.height);
-    cairo_fill(drw->cr_bg);
 	
-	// cairo_surface_flush(m->bardrw->surface);
 
-	// drw_rect(drw, 10, 10, 100, 20, 1.0, 0.0, 0.0, 1.0);
-	// drw_rounded_rect(m->bardrw, 0, 0, 50, 20, 9);
-	// drw_rounded_rect(drw, m->ww - stw - 30, 0, 20, 20, 4);
+	drw_clear(drw);
 
-	// drw_rect(drw, 20, 0, TEXTW(drw,"test",font_desc_temp), 20);
+	cairo_set_source_rgba(drw->ctx, 0.1, 0.1, 0.1, 1.0);
+	cairo_rectangle(drw->ctx, 0, 0, m->ww, bar.dimensions.height);
+	cairo_fill(drw->ctx);
 
-	// drw_text(drw, 20, 0, "test", font_desc_temp);
-
-	// /* draw status first so it can be overdrawn by tags later */
-	// if (m == selmon) { /* status is only drawn on selected monitor */
-	// 	tw = statusw = m->ww - drawstatusbar(m, bh, stext);
-	// }
-
-	// for (c = m->clients; c; c = c->next) {
-	// 	occ |= c->tags;
-	// 	if (c->isurgent)
-	// 		urg |= c->tags;
-	// }
-	
-	modulegroups[ModuleGroupLeft].dimensions = (DDimension){0,0};
-	modulegroups[ModuleGroupLeft].nextelementxpos = 0;
-	modulegroups[ModuleGroupCenter].dimensions = (DDimension){0,0};
-	modulegroups[ModuleGroupCenter].nextelementxpos = 0;
-	modulegroups[ModuleGroupRight].dimensions = (DDimension){0,0};
-	modulegroups[ModuleGroupRight].nextelementxpos = 0;
-	
 	for (int modulegroup = 0; modulegroup < LENGTH(modulegroups); modulegroup++) {
+		modulegroups[modulegroup].dimensions = (Dimensions){0,0};
+		modulegroups[modulegroup].nextelementxpos = 0;
 		
-		for (int i = 0; i < modulegroups[modulegroup].modules_length; i++) {
-			modulegroups[modulegroup].modules[i].sizefunc(&modulegroups[modulegroup].modules[i], modulegroup);
+		// doing this to get the modulegroup dimensions before drawing the modules
+		for (int i = 0; i < dynarray_length(modulegroups[modulegroup].modules); i++) {
+			moduledraw(&modulegroups[modulegroup].modules[i], modulegroup, m, c, 0);
 		}
-
-		modulegroups[modulegroup].dimensions.width += (modulegroups[modulegroup].style.border_width * 2) +
-		 											modulegroups[modulegroup].style.padding.l + modulegroups[modulegroup].style.padding.r
-													- modulegroups[modulegroup].style.gap;
 
 		if (modulegroups[modulegroup].dimensions.height > bar.dimensions.height){
 			int newbarheight = modulegroups[modulegroup].dimensions.height
@@ -1317,19 +1292,23 @@ drawbar(Monitor *m)
 				arrange(m);
 			}
 		}
-
 		resizebarwin(m);
 
-
-		for (int i = 0; i < modulegroups[modulegroup].modules_length; i++) {
-			modulegroups[modulegroup].modules[i].drawfunc(&modulegroups[modulegroup].modules[i], modulegroup, m);
+		for (c = m->clients; c; c = c->next) {
+			occ |= c->tags;
+			if (c->isurgent)
+				urg |= c->tags;
 		}
 
+		modulegroups[modulegroup].dimensions.width += (modulegroups[modulegroup].style.border_width * 2) 
+		+ modulegroups[modulegroup].style.padding.l + modulegroups[modulegroup].style.padding.r
+		- modulegroups[modulegroup].style.gap;
 
 		int modgroupx = 0;
 		int modgroupy = 0;
 
 		switch (modulegroup) {
+			default:
 			case ModuleGroupLeft:
 				modgroupx = 0 + bar.style.padding.l;
 				break;
@@ -1353,81 +1332,15 @@ drawbar(Monitor *m)
 				break;
 		}
 
-		drw_rect(drw->cr_bg,
+		drw_rect(drw,
 			modgroupx, modgroupy + bar.style.padding.t,
 			modulegroups[modulegroup].dimensions.width, modulegroups[modulegroup].dimensions.height, modulegroups[modulegroup].style.border_width
 		);
+		
+		for (int i = 0; i < dynarray_length(modulegroups[modulegroup].modules); i++) {
+			moduledraw(&modulegroups[modulegroup].modules[i], modulegroup, m, c, 1);
+		}
 	}
-
-	// for (i = 0; i < modulegroups[LEFT].modules_length; i++) {
-	// 	modules[modulegroups[LEFT].modules[i]].sizefunc(&modules[modulegroups[LEFT].modules[i]]);
-
-	// 	if (modules[modulegroups[LEFT].modules[i]].modulesize.y > modulegroups[LEFT].height)
-	// 		modulegroups[LEFT].height = modules[modulegroups[LEFT].modules[i]].modulesize.y +
-	// 									 modules[modulegroups[LEFT].modules[i]].style.padding.t +
-	// 									 modules[modulegroups[LEFT].modules[i]].style.padding.b +
-	// 									 modules[modulegroups[LEFT].modules[i]].style.border_width * 2;
-
-	// 	user_style.module_lsize += modules[modulegroups[LEFT].modules[i]].modulesize.x;
-
-	// 	modules[modulegroups[LEFT].modules[i]].drawfunc(&modules[modulegroups[LEFT].modules[i]], m);
-	// }
-
-
-	// drw_rect(drw->cr_bg,
-	// 	0 + 30, 0,
-	// 	user_style.module_lsize + 2, modulegroups[LEFT].module_height, 1
-	// );
-	
-	// for (i = 0; i < modulegroups[LEFT].modules_length; i++)
-
-
-	// for (i = 0; i < LENGTH(tags); i++) {
-	// 	// if (m->tagset[m->seltags] & 1 << i)
-	// 	// 	tagscheme = SchemeSel;
-	// 	// else if (occ & 1 << i)
-	// 	// 	tagscheme = SchemeNorm;
-	// 	// else
-	// 	// 	tagscheme = SchemeSec;
-
-	// 	DDimension textdim = drw_get_textdim(drw, tags[i], font_desc_temp); 
-	// 	w = textdim.width;
-	// 	drw_rect(drw,
-	// 		x, 0,
-	// 		w + buttonpadding.l + buttonpadding.r + (borderw * 2),
-	// 		textdim.height + buttonpadding.b + buttonpadding.t + (borderw * 2)
-	// 	);
-	// 	drw_text(drw, x + buttonpadding.l + borderw, 0 + buttonpadding.t + borderw, tags[i], font_desc_temp);
-	// 	if (i == LENGTH(tags) - 1){
-	// 		tagsgap = 0;
-	// 	}
-	// 	x += w + buttonpadding.r + buttonpadding.l + (borderw * 2) + tagsgap;
-	// }
-
-
-	
-	// drw_text(drw, x, 0, modules_left[0], font_desc_temp);
-
-	// // only shows layout symbol if it is monocle
-	// if (m->sellt == 1) {
-	// 	w = TEXTW(m->ltsymbol);
-	// 	drw_setscheme(drw, scheme[SchemeNorm]);
-	// 	x = drw_text(drw, x, 0, w, bh, lrpad / 2, m->ltsymbol, 0);
-	// }
-	
-	// if ((w = m->ww - tw - stw - x) > bh) {
-	// 	if (m->sel) {
-	// 		drw_setscheme(drw, scheme[SchemeNorm]);
-	// 		tlpad = MAX((m->ww - ((int)TEXTW(m->sel->name) - lrpad)) / 2 - x, lrpad / 2);
-	// 		drw_text(drw, x, 0, w, bh, tlpad, m->sel->name, 0);
-	// 		if (m->sel->isfloating)
-	// 			drw_rect(drw, x + boxs + tlpad - lrpad / 2, boxs,
-	// 				boxw, boxw, m->sel->isfixed, 0);
-	// 	} else {
-	// 		drw_setscheme(drw, scheme[SchemeNorm]);
-	// 		drw_rect(drw, x, 0, w, bh, 1, 1);
-	// 	}
-	// }
 
 	drw_map(drw, m->barwin, 0, 0, m->ww, bar.dimensions.height);
 }
@@ -1867,7 +1780,7 @@ maprequest(XEvent *e)
 	Client *i;
 	if ((i = wintosystrayicon(ev->window))) {
 		sendevent(i->win, netatom[Xembed], StructureNotifyMask, CurrentTime, XEMBED_WINDOW_ACTIVATE, 0, systray->win, XEMBED_EMBEDDED_VERSION);
-		resizebarwin(selmon);
+		// resizebarwin(selmon);
 		updatesystray(1);
 	}
 
@@ -2129,7 +2042,7 @@ propertynotify(XEvent *e)
 		}
 		else
 			updatesystrayiconstate(c, ev);
-		resizebarwin(selmon);
+		// resizebarwin(selmon);
 		updatesystray(1);
 	}
 
@@ -2288,7 +2201,7 @@ resizerequest(XEvent *e)
 
 	if ((i = wintosystrayicon(ev->window))) {
 		updatesystrayicongeom(i, ev->width, ev->height);
-		resizebarwin(selmon);
+		// resizebarwin(selmon);
 		updatesystray(1);
 	}
 }
@@ -2572,6 +2485,8 @@ setup(void)
 //  scheme[i] = drw_scm_create(drw, colors[i], alphas[i], 3);
 	/* init system tray */
 	updatesystray(0);
+	/* init bar modules */
+	setupbarmodules();
 	/* init bars */
 	updatebars();
 	updatestatus();
@@ -3215,7 +3130,7 @@ updatesystray(int updatebar)
 	XWindowChanges wc;
 	Client *i;
 	Monitor *m = systraytomon(NULL);
-	unsigned int x = m->mx + m->mw;
+	unsigned int x = systraypos.x, y = systraypos.y;
 	unsigned int sw = 0 - lrpad + systrayspacing;
 	unsigned int w = 1;
 	XSetWindowAttributes wa = {
@@ -3239,7 +3154,7 @@ updatesystray(int updatebar)
 	wa.background_pixel = 0;
 	wa.border_pixel = 0;
 	wa.colormap = cmap;
-	systray->win = XCreateWindow(dpy, root, x, m->by, w, bh, 0, depth,
+	systray->win = XCreateWindow(dpy, root, x, y, w, bh, 0, depth,
 					InputOutput, visual,
 					CWOverrideRedirect|CWBackPixel|CWBorderPixel|CWColormap|CWEventMask, &wa);
 	XSelectInput(dpy, systray->win, SubstructureNotifyMask);
@@ -3281,9 +3196,10 @@ updatesystray(int updatebar)
 			i->mon = m;
 	}
 	w = w ? w + systrayspacing : 1;
-	x -= w;
-	XMoveResizeWindow(dpy, systray->win, x, m->by, w, bh);
-	wc.x = x; wc.y = m->by; wc.width = w; wc.height = bh;
+	if (getsystraywidth() == 1)
+		x = 0 - 1;
+	XMoveResizeWindow(dpy, systray->win, x, y, w, bh);
+	wc.x = x; wc.y = y; wc.width = w; wc.height = bh;
 	wc.stack_mode = Above; wc.sibling = m->barwin;
 	XConfigureWindow(dpy, systray->win, CWX|CWY|CWWidth|CWHeight|CWSibling|CWStackMode, &wc);
 	XMapWindow(dpy, systray->win);

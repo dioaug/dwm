@@ -8,7 +8,7 @@ typedef struct {
 typedef struct {
 	int width;
 	int height;
-} DDimension;
+} Dimensions;
 
 typedef struct {
 	int t;
@@ -29,10 +29,10 @@ typedef struct {
 	unsigned int depth;
 	Colormap cmap;
 	
-	cairo_surface_t    *surface_bg;
-    cairo_t            *cr_bg;
-    cairo_surface_t    *surface;
-    cairo_t            *cr;
+	cairo_t *ctx;
+	cairo_surface_t *sur;
+	cairo_t *ctx_b;
+	cairo_surface_t *sur_b;
 	
 } Drw;
 
@@ -46,10 +46,11 @@ Cur *drw_cur_create(Drw *drw, int shape);
 void drw_cur_free(Drw *drw, Cur *cursor);
 
 /* Drawing functions */
-void drw_rect(cairo_t *cr, int x, int y, unsigned int w, unsigned int h, double bw);
+void drw_rect(Drw *drw, int x, int y, unsigned int w, unsigned int h, double bw);
 void drw_text(Drw *drw, int x, int y, const char *text, const char *font_desc);
 
-DDimension drw_get_textdim(Drw *drw, const char *text, const char *font_desc);
+Dimensions drw_get_textdim(Drw *drw, const char *text, const char *font_desc);
 
 /* Map functions */
 void drw_map(Drw *drw, Window win, int x, int y, unsigned int w, unsigned int h);
+void drw_clear(Drw *drw);
