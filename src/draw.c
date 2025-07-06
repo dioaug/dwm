@@ -11,7 +11,7 @@
 #include <cairo/cairo-xlib.h>
 #include <pango/pangocairo.h>
 
-#include "drw.h"
+#include "draw.h"
 #include "util.h"
 
 Drw *
