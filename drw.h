@@ -11,6 +11,13 @@ typedef struct {
 } Dimensions;
 
 typedef struct {
+	double r;
+	double g;
+	double b;
+	double a;
+} Color;
+
+typedef struct {
 	int t;
 	int r;
 	int b;
@@ -46,8 +53,8 @@ Cur *drw_cur_create(Drw *drw, int shape);
 void drw_cur_free(Drw *drw, Cur *cursor);
 
 /* Drawing functions */
-void drw_rect(Drw *drw, int x, int y, unsigned int w, unsigned int h, double bw);
-void drw_text(Drw *drw, int x, int y, const char *text, const char *font_desc);
+void drw_rect(Drw *drw, int x, int y, unsigned int w, unsigned int h, double bw, Color bg_color, Color bd_color);
+void drw_text(Drw *drw, int x, int y, const char *text, const char *font_desc, Color color);
 
 Dimensions drw_get_textdim(Drw *drw, const char *text, const char *font_desc);
 

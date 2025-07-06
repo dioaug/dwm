@@ -397,7 +397,7 @@ static Bar bar = {
 	.dimensions = {0,1},
 	.style = (BoxStyle){
 		// .border_width = 2, 
-		.padding = {2, 10, 2, 10},
+		.padding = {2, 2, 2, 2},
 		.alignitems = Center,
 	},
 };
@@ -504,10 +504,7 @@ setupbarmodules()
 	};
 	
 	dynarray_push(modulegroups[ModuleGroupLeft].modules, module_tags);
-	dynarray_push(modulegroups[ModuleGroupLeft].modules, module_rect);
 	dynarray_push(modulegroups[ModuleGroupCenter].modules, module_textrect);
-	dynarray_push(modulegroups[ModuleGroupCenter].modules, module_rect);
-	dynarray_push(modulegroups[ModuleGroupRight].modules, module_rect);
 	dynarray_push(modulegroups[ModuleGroupRight].modules, module_systray);
 }
 
@@ -1139,7 +1136,9 @@ moduledraw(struct Module *mod, enum alignment alignment, Monitor *m, Client *c, 
 			modsize.height + (mod->style.border_width * 2) +
 			mod->style.padding.t + mod->style.padding.b
 			,
-			mod->style.border_width
+			mod->style.border_width,
+			(Color){0.1, 0.1, 0.1, 0.4},
+			(Color){0.2, 0.2, 0.2, 1.0}
 		);
 		
 		int modulewidth = modsize.width + (mod->style.border_width * 2)
@@ -1154,9 +1153,11 @@ moduledraw(struct Module *mod, enum alignment alignment, Monitor *m, Client *c, 
 Dimensions
 moduledraw_rect(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw)
 {
-	unsigned int width = 20, height = 20;
+	unsigned int width = 16, height = 16;
 	if (shoulddraw) {
-		drw_rect(drw, pos.x, pos.y, width, height, 1);
+		drw_rect(drw, pos.x, pos.y, width, height, 1, 
+			(Color){0.1, 0.1, 0.1, 0.4},
+			(Color){0.2, 0.2, 0.2, 1.0});
 	}
 
 	return (Dimensions){
@@ -1171,25 +1172,51 @@ moduledraw_tags(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shouldd
 	unsigned int width = 0, height = 0;
 	unsigned int tagsgap = mod->style.gap;
 
+	unsigned int i, occ = 0, urg = 0;
+
 	for (int i = 0; i < LENGTH(tags); i++) {
 		Dimensions textdim = drw_get_textdim(drw, tags[i], user_style.font_desc_temp); 
 
 		if (shoulddraw) {
 		
+			for (c = m->clients; c; c = c->next) {
+				occ |= c->tags;
+				if (c->isurgent)
+					urg |= c->tags;
+			}
+
+			Color text_color;
+			Color bg_color;
+			Color bd_color;
+
+			if (m->tagset[m->seltags] & 1 << i) {
+				text_color = (Color){1.0, 1.0, 1.0, 1.0};
+				bg_color   = (Color){0.2, 0.2, 0.2, 1.0};
+				bd_color   = (Color){0.2, 0.2, 0.2, 1.0};
+			} else if (occ & 1 << i) {
+				text_color = (Color){1.0, 1.0, 1.0, 1.0};
+				bg_color   = (Color){0.1, 0.1, 0.1, 0.0};
+				bd_color   = (Color){0.2, 0.2, 0.2, 0.0};
+			} else {
+				text_color = (Color){0.3686, 0.3686, 0.3686, 1.0};
+				bg_color   = (Color){0.1, 0.1, 0.1, 0.0};
+				bd_color   = (Color){0.2, 0.2, 0.2, 0.0};
+			}
+
 			drw_rect(drw, pos.x + width, pos.y,
 				textdim.width + (mod->children.style.border_width * 2) +
 				mod->children.style.padding.l + mod->children.style.padding.r
 				,
 				textdim.height + (mod->children.style.border_width * 2) +
 				mod->children.style.padding.b + mod->children.style.padding.t
-				, mod->children.style.border_width);
+				, mod->children.style.border_width, bg_color, bd_color);
 			drw_text(drw, pos.x +
 				width + 
 				mod->children.style.padding.l +
 				mod->children.style.border_width
 				,
 				pos.y + mod->children.style.padding.t + mod->children.style.border_width
-				, tags[i], user_style.font_desc_temp);
+				, tags[i], user_style.font_desc_temp, text_color);
 
 		}
 
@@ -1223,11 +1250,14 @@ moduledraw_textrect(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int sho
 	+ mod->children.style.padding.b + mod->children.style.padding.t;
 
 	if (shoulddraw) {
-		drw_rect(drw, pos.x, pos.y, width, height, mod->children.style.border_width);
+		drw_rect(drw, pos.x, pos.y, width, height, mod->children.style.border_width,
+			(Color){0.1, 0.1, 0.1, 0.4},
+			(Color){0.2, 0.2, 0.2, 1.0});
 		drw_text(drw, 
 			pos.x + mod->children.style.padding.l + mod->children.style.border_width, 
 			pos.y + mod->children.style.padding.t + mod->children.style.border_width, 
-			text, user_style.font_desc_temp);
+			text, user_style.font_desc_temp,
+			(Color){1.0, 1.0, 1.0, 1.0});
 	}
 
 	return (Dimensions){
@@ -1243,7 +1273,9 @@ moduledraw_systray(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shou
 
 	systraypos = (Vec2){pos.x, pos.y};
 	if (shoulddraw && getsystraywidth() > 1) {
-		drw_rect(drw, pos.x, pos.y, width, height, 1);
+		drw_rect(drw, pos.x, pos.y, width, height, 1,
+			(Color){0.1, 0.1, 0.1, 0.4},
+			(Color){0.2, 0.2, 0.2, 1.0});
 	}
 
 	if (getsystraywidth() == 1)
@@ -1276,11 +1308,17 @@ drawbar(Monitor *m)
 	for (int modulegroup = 0; modulegroup < LENGTH(modulegroups); modulegroup++) {
 		modulegroups[modulegroup].dimensions = (Dimensions){0,0};
 		modulegroups[modulegroup].nextelementxpos = 0;
+
+		if (dynarray_length(modulegroups[modulegroup].modules) == 0)
+			continue;
 		
 		// doing this to get the modulegroup dimensions before drawing the modules
 		for (int i = 0; i < dynarray_length(modulegroups[modulegroup].modules); i++) {
 			moduledraw(&modulegroups[modulegroup].modules[i], modulegroup, m, c, 0);
 		}
+
+		if (modulegroups[modulegroup].dimensions.width == 0)
+			continue;
 
 		if (modulegroups[modulegroup].dimensions.height > bar.dimensions.height){
 			int newbarheight = modulegroups[modulegroup].dimensions.height
@@ -1334,7 +1372,9 @@ drawbar(Monitor *m)
 
 		drw_rect(drw,
 			modgroupx, modgroupy + bar.style.padding.t,
-			modulegroups[modulegroup].dimensions.width, modulegroups[modulegroup].dimensions.height, modulegroups[modulegroup].style.border_width
+			modulegroups[modulegroup].dimensions.width, modulegroups[modulegroup].dimensions.height, modulegroups[modulegroup].style.border_width,
+			(Color){0.1, 0.1, 0.1, 0.4},
+			(Color){0.2, 0.2, 0.2, 1.0}
 		);
 		
 		for (int i = 0; i < dynarray_length(modulegroups[modulegroup].modules); i++) {
@@ -1382,7 +1422,7 @@ focus(Client *c)
 		detachstack(c);
 		attachstack(c);
 		grabbuttons(c, 1);
-		XSetWindowBorder(dpy, c->win, 0x00ff0000);
+		XSetWindowBorder(dpy, c->win, 0x0090ff40);
 		setfocus(c);
 	} else {
 		XSetInputFocus(dpy, root, RevertToPointerRoot, CurrentTime);
@@ -1730,7 +1770,7 @@ manage(Window w, XWindowAttributes *wa)
 
 	wc.border_width = c->bw;
 	XConfigureWindow(dpy, w, CWBorderWidth, &wc);
-	XSetWindowBorder(dpy, w, 0x0000ff00);
+	XSetWindowBorder(dpy, w, 0x00333333);
 	configure(c); /* propagates border_width, if size doesn't change */
 	updatewindowtype(c);
 	updatesizehints(c);
@@ -2805,7 +2845,7 @@ unfocus(Client *c, int setfocus)
 	if (!c)
 		return;
 	grabbuttons(c, 0);
-	XSetWindowBorder(dpy, c->win, 0x000000ff);
+	XSetWindowBorder(dpy, c->win, 0x00333333);
 	if (setfocus) {
 		XSetInputFocus(dpy, root, RevertToPointerRoot, CurrentTime);
 		XDeleteProperty(dpy, root, netatom[NetActiveWindow]);

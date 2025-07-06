@@ -56,7 +56,7 @@ drw_free(Drw *drw)
 }
 
 void
-drw_rect(Drw *drw, int x, int y, unsigned int w, unsigned int h, double bw)
+drw_rect(Drw *drw, int x, int y, unsigned int w, unsigned int h, double bw, Color bg_color, Color bd_color)
 {
     double r = 6;
 
@@ -71,26 +71,26 @@ drw_rect(Drw *drw, int x, int y, unsigned int w, unsigned int h, double bw)
     cairo_arc(drw->ctx, x + r, y + r, r, M_PI, 3*M_PI/2);
     cairo_close_path(drw->ctx);
 
-    cairo_set_source_rgba(drw->ctx, 0.1, 0.1, 0.1, 0.4);
+    cairo_set_source_rgba(drw->ctx, bg_color.r, bg_color.g, bg_color.b, bg_color.a);
 	
     cairo_fill_preserve(drw->ctx);
     cairo_clip_preserve(drw->ctx);
 
     cairo_set_line_width(drw->ctx, bw * 2);
-    cairo_set_source_rgba(drw->ctx, 0.2, 0.2, 0.2, 1.0); // border color
+    cairo_set_source_rgba(drw->ctx, bd_color.r, bd_color.g, bd_color.b, bd_color.a);
     cairo_stroke(drw->ctx);
 
     cairo_reset_clip(drw->ctx);
 }
 
 void
-drw_text(Drw *drw, int x, int y, const char *text, const char *font_desc) {
+drw_text(Drw *drw, int x, int y, const char *text, const char *font_desc, Color color) {
 	if (text == NULL || *text == '\0')
         return;
 
 	PangoLayout *layout = pango_cairo_create_layout(drw->ctx);
 
-    cairo_set_source_rgb(drw->ctx, 1.0, 1.0, 1.0);
+    cairo_set_source_rgb(drw->ctx, color.r, color.g, color.b);
 	pango_layout_set_text(layout, text, -1);
 	PangoFontDescription *desc = pango_font_description_from_string(font_desc);
 	pango_layout_set_font_description(layout, desc);
