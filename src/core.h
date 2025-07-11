@@ -14,10 +14,7 @@
 #define MOUSEMASK               (BUTTONMASK|PointerMotionMask)
 #define WIDTH(X)                ((X)->w + 2 * (X)->bw)
 #define HEIGHT(X)               ((X)->h + 2 * (X)->bw)
-#define NUMTAGS					(LENGTH(tags) + LENGTH(scratchpads))
-#define TAGMASK     			((1 << NUMTAGS) - 1)
-#define SPTAG(i) 				((1 << LENGTH(tags)) << (i))
-#define SPTAGMASK   			(((1 << LENGTH(scratchpads))-1) << LENGTH(tags))
+#define TAGMASK                 ((1 << LENGTH(tags)) - 1)
 #define TAGSLENGTH              (LENGTH(tags))
 #define OPAQUE                  0xffU
 #define _NET_SYSTEM_TRAY_ORIENTATION_HORZ 0
@@ -221,7 +218,6 @@ void spawn(const Arg *arg);
 void togglebar(const Arg *arg);
 void togglefloating(const Arg *arg);
 void togglefullscr(const Arg *arg);
-void togglescratch(const Arg *arg);
 void focusdir(const Arg *arg);
 void placedir(const Arg *arg);
 void setmfact(const Arg *arg);

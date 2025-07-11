@@ -32,16 +32,6 @@ static const char col_cyan[]        = "#90ff40";
 static const unsigned int baralpha = 0x45;
 static const unsigned int borderalpha = OPAQUE;
 
-typedef struct {
-	const char *name;
-	const void *cmd;
-} Sp;
-const char *spcmd1[] = {"nemo", NULL };
-static Sp scratchpads[] = {
-	/* name          cmd  */
-	{"spfilemanager",   spcmd1},
-};
-
 /* tagging */
 static char *tags[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
 
@@ -51,9 +41,8 @@ static const Rule rules[] = {
 	 *	WM_NAME(STRING) = title
 	 */
 	/* class      instance    title       tags mask     isfloating   monitor */
-	//{ "Gimp",     NULL,       NULL,       0,            1,           -1 },
-	//{ "Firefox",  NULL,       NULL,       1 << 8,       0,           -1 },
-	{ NULL,		        "nemo",		    NULL,		SPTAG(0),		1,			 -1 },
+	{ "Gimp",     NULL,       NULL,       0,            1,           -1 },
+	{ "Firefox",  NULL,       NULL,       1 << 8,       0,           -1 },
 };
 
 /* layout(s) */
@@ -139,7 +128,6 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_period, focusmon,       {.i = +1 } },
 	{ MODKEY|ShiftMask,             XK_comma,  tagmon,         {.i = -1 } },
 	{ MODKEY|ShiftMask,             XK_period, tagmon,         {.i = +1 } },
-	{ MODKEY,            			XK_c,  	   togglescratch,  {.ui = 0 } },
 	{ 0,            			    XF86XK_AudioRaiseVolume,   spawn,  {.v = volumeraisecmd } },
 	{ 0,            			    XF86XK_AudioLowerVolume,   spawn,  {.v = volumelowercmd } },
 	{ 0,            			    XF86XK_AudioMute,          spawn,  {.v = volumemutecmd } },
