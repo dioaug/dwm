@@ -592,8 +592,6 @@ dirtomon(int dir)
 	return m;
 }
 
-
-
 void
 drawbar(Monitor *m)
 {
@@ -603,8 +601,6 @@ drawbar(Monitor *m)
 
 	if (!m->showbar)
 		return;
-
-	
 
 	drw_clear(drw);
 
@@ -700,12 +696,6 @@ drawbars(void)
 	for (m = mons; m; m = m->next)
 		drawbar(m);
 }
-
-
-
-
-
-
 
 void
 expose(XEvent *e)
@@ -1655,7 +1645,7 @@ setcurrentdesktop(void){
 }
 void setdesktopnames(void){
 	XTextProperty text;
-	Xutf8TextListToTextProperty(dpy, tags, TAGSLENGTH, XUTF8StringStyle, &text);
+	Xutf8TextListToTextProperty(dpy, (char **)tags, TAGSLENGTH, XUTF8StringStyle, &text);
 	XSetTextProperty(dpy, root, &text, netatom[NetDesktopNames]);
 }
 

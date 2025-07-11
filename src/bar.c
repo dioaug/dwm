@@ -1,5 +1,5 @@
 #include "bar.h"
-// #include "config.h"
+#include "config.h"
 #include "util.h"
 #include "draw.h"
 #include "dynarray.h"
@@ -33,26 +33,26 @@ setupbarmodules()
 		};
 	}
 
-	// Module module_tags = (Module){
-	// 	.drawfunc = moduledraw_tags,
-	// 	.children = {
-	// 		// .elements = boxtest,
-	// 		// .num_elements = LENGTH(boxtest),
-	// 		.style = {
-	// 			.border_width = 2, 
-	// 			.padding = {1, 6, 1, 6},
-	// 			.alignitems = Start,
-	// 			.gap = 0,
-	// 		},
-	// 	},
-	// 	.modulesize = {.x=0,.y=0},
-	// 	.style = {
-	// 		.border_width = 2, 
-	// 		.padding = {2, 2, 2, 2},
-	// 		.alignitems = Start,
-	// 		.gap = 2,
-	// 	}
-	// };
+	Module module_tags = (Module){
+		.drawfunc = moduledraw_tags,
+		.children = {
+			// .elements = boxtest,
+			// .num_elements = LENGTH(boxtest),
+			.style = {
+				.border_width = 2, 
+				.padding = {1, 6, 1, 6},
+				.alignitems = Start,
+				.gap = 0,
+			},
+		},
+		.modulesize = {.x=0,.y=0},
+		.style = {
+			.border_width = 2, 
+			.padding = {2, 2, 2, 2},
+			.alignitems = Start,
+			.gap = 2,
+		}
+	};
 
 	Module module_rect = (Module){
 		.drawfunc = moduledraw_rect,
@@ -117,7 +117,7 @@ setupbarmodules()
 		}
 	};
 	
-	dynarray_push(modulegroups[ModuleGroupLeft].modules, module_rect);
+	dynarray_push(modulegroups[ModuleGroupLeft].modules, module_tags);
 	dynarray_push(modulegroups[ModuleGroupCenter].modules, module_textrect);
 	dynarray_push(modulegroups[ModuleGroupRight].modules, module_systray);
 }
@@ -248,71 +248,71 @@ moduledraw_rect(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shouldd
 	};
 }
 
-// Dimensions
-// moduledraw_tags(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw)
-// {
-// 	unsigned int width = 0, height = 0;
-// 	unsigned int tagsgap = mod->style.gap;
+Dimensions
+moduledraw_tags(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw)
+{
+	unsigned int width = 0, height = 0;
+	unsigned int tagsgap = mod->style.gap;
 
-// 	unsigned int i, occ = 0, urg = 0;
+	unsigned int i, occ = 0, urg = 0;
 
-// 	for (int i = 0; i < LENGTH(tags); i++) {
-// 		Dimensions textdim = drw_get_textdim(drw, tags[i], font_desc_temp); 
+	for (int i = 0; i < LENGTH(tags); i++) {
+		Dimensions textdim = drw_get_textdim(drw, tags[i], font_desc_temp); 
 
-// 		if (shoulddraw) {
+		if (shoulddraw) {
 		
-// 			for (c = m->clients; c; c = c->next) {
-// 				occ |= c->tags;
-// 				if (c->isurgent)
-// 					urg |= c->tags;
-// 			}
+			for (c = m->clients; c; c = c->next) {
+				occ |= c->tags;
+				if (c->isurgent)
+					urg |= c->tags;
+			}
 
-// 			Color text_color;
-// 			Color bg_color;
-// 			Color bd_color;
+			Color text_color;
+			Color bg_color;
+			Color bd_color;
 
-// 			if (m->tagset[m->seltags] & 1 << i) {
-// 				text_color = (Color){1.0, 1.0, 1.0, 1.0};
-// 				bg_color   = (Color){0.2, 0.2, 0.2, 1.0};
-// 				bd_color   = (Color){0.2, 0.2, 0.2, 1.0};
-// 			} else if (occ & 1 << i) {
-// 				text_color = (Color){1.0, 1.0, 1.0, 1.0};
-// 				bg_color   = (Color){0.1, 0.1, 0.1, 0.0};
-// 				bd_color   = (Color){0.2, 0.2, 0.2, 0.0};
-// 			} else {
-// 				text_color = (Color){0.3686, 0.3686, 0.3686, 1.0};
-// 				bg_color   = (Color){0.1, 0.1, 0.1, 0.0};
-// 				bd_color   = (Color){0.2, 0.2, 0.2, 0.0};
-// 			}
+			if (m->tagset[m->seltags] & 1 << i) {
+				text_color = (Color){1.0, 1.0, 1.0, 1.0};
+				bg_color   = (Color){0.2, 0.2, 0.2, 1.0};
+				bd_color   = (Color){0.2, 0.2, 0.2, 1.0};
+			} else if (occ & 1 << i) {
+				text_color = (Color){1.0, 1.0, 1.0, 1.0};
+				bg_color   = (Color){0.1, 0.1, 0.1, 0.0};
+				bd_color   = (Color){0.2, 0.2, 0.2, 0.0};
+			} else {
+				text_color = (Color){0.3686, 0.3686, 0.3686, 1.0};
+				bg_color   = (Color){0.1, 0.1, 0.1, 0.0};
+				bd_color   = (Color){0.2, 0.2, 0.2, 0.0};
+			}
 
-// 			drw_rect(drw, pos.x + width, pos.y,
-// 				textdim.width + (mod->children.style.border_width * 2) +
-// 				mod->children.style.padding.l + mod->children.style.padding.r
-// 				,
-// 				textdim.height + (mod->children.style.border_width * 2) +
-// 				mod->children.style.padding.b + mod->children.style.padding.t
-// 				, mod->children.style.border_width, bg_color, bd_color);
-// 			drw_text(drw, pos.x +
-// 				width + 
-// 				mod->children.style.padding.l +
-// 				mod->children.style.border_width
-// 				,
-// 				pos.y + mod->children.style.padding.t + mod->children.style.border_width
-// 				, tags[i], font_desc_temp, text_color);
+			drw_rect(drw, pos.x + width, pos.y,
+				textdim.width + (mod->children.style.border_width * 2) +
+				mod->children.style.padding.l + mod->children.style.padding.r
+				,
+				textdim.height + (mod->children.style.border_width * 2) +
+				mod->children.style.padding.b + mod->children.style.padding.t
+				, mod->children.style.border_width, bg_color, bd_color);
+			drw_text(drw, pos.x +
+				width + 
+				mod->children.style.padding.l +
+				mod->children.style.border_width
+				,
+				pos.y + mod->children.style.padding.t + mod->children.style.border_width
+				, tags[i], font_desc_temp, text_color);
 
-// 		}
+		}
 
-// 		if (i == LENGTH(tags) - 1) tagsgap = 0;
+		if (i == LENGTH(tags) - 1) tagsgap = 0;
 
-// 		width += textdim.width + mod->children.style.padding.r + mod->children.style.padding.l + (mod->children.style.border_width * 2) + tagsgap;
-// 		height = textdim.height + mod->children.style.padding.t + mod->children.style.padding.b + (mod->children.style.border_width * 2);
-// 	}
+		width += textdim.width + mod->children.style.padding.r + mod->children.style.padding.l + (mod->children.style.border_width * 2) + tagsgap;
+		height = textdim.height + mod->children.style.padding.t + mod->children.style.padding.b + (mod->children.style.border_width * 2);
+	}
 
-// 	return (Dimensions){
-// 		.width = width,
-// 		.height = height,
-// 	};
-// }
+	return (Dimensions){
+		.width = width,
+		.height = height,
+	};
+}
 
 Dimensions
 moduledraw_textrect(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw)
