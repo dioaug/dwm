@@ -1,6 +1,11 @@
+#pragma once
+
 /* See LICENSE file for copyright and license details. */
 
 #include <X11/XF86keysym.h>
+#include <X11/Xutil.h>
+#include <string.h>
+#include "core.h"
 
 /* appearance */
 static const unsigned int borderpx  = 2;        /* border pixel of windows */
@@ -26,28 +31,6 @@ static const char col_gray4[]       = "#eeeeee";
 static const char col_cyan[]        = "#90ff40";
 static const unsigned int baralpha = 0x45;
 static const unsigned int borderalpha = OPAQUE;
-static const char *colors[][3]      = {
-	/*               fg         bg         border   */
-	[SchemeNorm]   = { col_gray4, col_gray1, col_gray2 },
-	[SchemeSel]    = { col_gray1, col_cyan,  col_cyan  },
-	[SchemeSec]    = { col_gray3, col_gray1, col_gray1  },
-	[SchemeSecInv] = { col_gray1, col_gray3, col_gray3  },
-};
-static const unsigned int alphas[][3]      = {
-    /*               fg      bg        border*/
-    [SchemeNorm]   = { OPAQUE, baralpha, borderalpha },
-	[SchemeSel]    = { OPAQUE, baralpha, borderalpha },
-	[SchemeSec]    = { OPAQUE, baralpha, borderalpha },
-	[SchemeSecInv] = { OPAQUE, baralpha, borderalpha },
-};
-
-typedef struct {
-	const char *font_desc_temp;
-} UserStyle;
-
-static UserStyle user_style = {
-	"sans-serif bold 8"
-};
 
 typedef struct {
 	const char *name;
@@ -121,7 +104,7 @@ static const Key keys[] = {
 
 	{ MODKEY,                       XK_h,      focusdir,       {.i = 0 } }, // left
 	{ MODKEY,                       XK_l,      focusdir,       {.i = 1 } }, // right
-	{ MODKEY,                       XK_k,      focusdir,       {.i = 2 } }, // up
+	{ MODKEY,                       XK_K,      focusdir,       {.i = 2 } }, // up
 	{ MODKEY,                       XK_j,      focusdir,       {.i = 3 } }, // down
 	{ MODKEY,                       XK_Left,   focusdir,       {.i = 0 } }, // left
 	{ MODKEY,                       XK_Right,  focusdir,       {.i = 1 } }, // right
@@ -150,8 +133,8 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_f,      togglecreatefconly,  {0} },
 	{ MODKEY,                       XK_m,      setlayout,      {.v = &layouts[2]} },
 	{ MODKEY,                       XK_space,  togglefloating, {0} },
-	{ MODKEY,                       XK_0,      view,           {.ui = ~0 } },
-	{ MODKEY|ShiftMask,             XK_0,      tag,            {.ui = ~0 } },
+	{ MODKEY,                       XK_0,      view,           {.ui = (unsigned int)~0 } },
+	{ MODKEY|ShiftMask,             XK_0,      tag,            {.ui = (unsigned int)~0 } },
 	{ MODKEY,                       XK_comma,  focusmon,       {.i = -1 } },
 	{ MODKEY,                       XK_period, focusmon,       {.i = +1 } },
 	{ MODKEY|ShiftMask,             XK_comma,  tagmon,         {.i = -1 } },
