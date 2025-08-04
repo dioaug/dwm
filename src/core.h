@@ -4,6 +4,7 @@
 
 #include "util.h"
 #include "draw.h"
+#include "core.h"
 
 /* macros */
 #define BUTTONMASK              (ButtonPressMask|ButtonReleaseMask)
@@ -127,7 +128,6 @@ struct Systray {
 	Client *icons;
 };
 
-
 /* function declarations */
 void applyrules(Client *c);
 int applysizehints(Client *c, int *x, int *y, int *w, int *h, int *bw, int interact);
@@ -147,9 +147,6 @@ void destroynotify(XEvent *e);
 void detach(Client *c);
 void detachstack(Client *c);
 Monitor *dirtomon(int dir);
-void drawbar(Monitor *m);
-void drawbars(void);
-int drawstatusbar(Monitor *m, int bh, char* text);
 void expose(XEvent *e);
 void focus(Client *c);
 void focusin(XEvent *e);
@@ -255,6 +252,8 @@ extern Colormap cmap;
 
 // Bar drw
 extern Drw *drw;
+
+extern Monitor *mons, *selmon;
 
 // SYSTRAY
 extern Systray *systray;

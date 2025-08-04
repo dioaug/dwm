@@ -1,8 +1,16 @@
 #pragma once
 
+#include <stdbool.h>
+
 #include "core.h"
+#include "draw.h"
 
 enum alignment { Start, Center, End };
+
+typedef struct {
+	int ModuleGroupIndex;
+	int ModuleIndex;
+} ModuleId;
 
 typedef struct {
 	unsigned int border_width;
@@ -12,17 +20,19 @@ typedef struct {
 } BoxStyle;
 
 struct Module;
-typedef Dimensions (*ModDrawFunc)(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw);
+typedef Dimensions (*ModDrawFunc)(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw, bool updatecontent);
 
 typedef struct {
 	// char **elements;
 	// size_t num_elements;
 	BoxStyle style;
+	char *content;
 } ModuleChildren;
 
 typedef struct Module {
 	ModDrawFunc drawfunc;
 	ModuleChildren children;
+	double updateinterval;
 	Vec2 modulesize;
 	BoxStyle style;
 } Module;
@@ -47,11 +57,17 @@ enum ModuleGroupType {
 
 extern ModuleGroup modulegroups[3];
 extern Bar bar;
+extern pthread_t bar_intervalthreads;
+extern bool bar_updating;
 
+void drawbar(Monitor *m, ModuleId* updatespecificmodcontent);
+void drawbars(void);
 void setupbarmodules();
-void moduledraw(struct Module *mod, enum alignment alignment, Monitor *m, Client *c, int shoulddraw);
+void bar_initupdateintervals();
+void moduledraw(struct Module *mod, enum alignment alignment, Monitor *m, Client *c, int shoulddraw, bool updatecontent);
 
-Dimensions moduledraw_tags(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw);
-Dimensions moduledraw_rect(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw);
-Dimensions moduledraw_textrect(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw);
-Dimensions moduledraw_systray(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw);
+Dimensions moduledraw_tags(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw, bool updatecontent);
+Dimensions moduledraw_rect(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw, bool updatecontent);
+Dimensions moduledraw_wintitle(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw, bool updatecontent);
+Dimensions moduledraw_time(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw, bool updatecontent);
+Dimensions moduledraw_systray(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw, bool updatecontent);

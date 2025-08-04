@@ -47,7 +47,7 @@ static Atom wmatom[WMLast], netatom[NetLast], xatom[XLast];
 static int running = 1;
 static Cur *cursor[CurLast];
 //  static Clr **scheme;
-static Monitor *mons, *selmon;
+Monitor *mons, *selmon;
 static Window root, wmcheckwin;
 
 static int useargb = 0;
@@ -306,9 +306,13 @@ cleanup(void)
 //  for (i = 0; i < LENGTH(colors) + 1; i++)
 // 	 free(scheme[i]);
 //  free(scheme);
-	// for (int i = 0; i < LENGTH(modulegroups); i++) {
-	// 	dynarray_destroy(modulegroups[i].modules);
-	// }
+	for (int i = 0; i < LENGTH(modulegroups); i++) {
+		for (int z = 0; z < dynarray_length(modulegroups[i].modules); z++)
+			free(modulegroups[i].modules[z].children.content);
+
+		dynarray_destroy(modulegroups[i].modules);
+	}
+    // free(threads);
 	XDestroyWindow(dpy, wmcheckwin);
 	drw_free(drw);
 	XSync(dpy, False);
@@ -592,110 +596,6 @@ dirtomon(int dir)
 	return m;
 }
 
-void
-drawbar(Monitor *m)
-{
-	int stw = 0;
-	unsigned occ = 0, urg = 0;
-	Client *c;
-
-	if (!m->showbar)
-		return;
-
-	drw_clear(drw);
-
-	cairo_set_source_rgba(drw->ctx, 0.1, 0.1, 0.1, 1.0);
-	cairo_rectangle(drw->ctx, 0, 0, m->ww, bar.dimensions.height);
-	cairo_fill(drw->ctx);
-
-	for (int modulegroup = 0; modulegroup < LENGTH(modulegroups); modulegroup++) {
-		modulegroups[modulegroup].dimensions = (Dimensions){0,0};
-		modulegroups[modulegroup].nextelementxpos = 0;
-
-		if (dynarray_length(modulegroups[modulegroup].modules) == 0)
-			continue;
-		
-		// doing this to get the modulegroup dimensions before drawing the modules
-		for (int i = 0; i < dynarray_length(modulegroups[modulegroup].modules); i++) {
-			moduledraw(&modulegroups[modulegroup].modules[i], modulegroup, m, c, 0);
-		}
-
-		if (modulegroups[modulegroup].dimensions.width == 0)
-			continue;
-
-		if (modulegroups[modulegroup].dimensions.height > bar.dimensions.height){
-			int newbarheight = modulegroups[modulegroup].dimensions.height
-			+ bar.style.padding.t + bar.style.padding.b;
-
-			if (bar.dimensions.height != newbarheight) {
-				bar.dimensions.height = newbarheight;
-				updatebarpos(m);
-				arrange(m);
-			}
-		}
-		resizebarwin(m);
-
-		for (c = m->clients; c; c = c->next) {
-			occ |= c->tags;
-			if (c->isurgent)
-				urg |= c->tags;
-		}
-
-		modulegroups[modulegroup].dimensions.width += (modulegroups[modulegroup].style.border_width * 2) 
-		+ modulegroups[modulegroup].style.padding.l + modulegroups[modulegroup].style.padding.r
-		- modulegroups[modulegroup].style.gap;
-
-		int modgroupx = 0;
-		int modgroupy = 0;
-
-		switch (modulegroup) {
-			default:
-			case ModuleGroupLeft:
-				modgroupx = 0 + bar.style.padding.l;
-				break;
-			case ModuleGroupCenter:
-				modgroupx = (m->ww / 2) - (modulegroups[modulegroup].dimensions.width / 2);
-				break;
-			case ModuleGroupRight:
-				modgroupx = m->ww - modulegroups[modulegroup].dimensions.width - bar.style.padding.r;
-				break;
-		}
-
-		switch (bar.style.alignitems) {
-			case Start:
-				modgroupy = 0;
-				break;
-			case Center:
-				modgroupy = ((bar.dimensions.height - bar.style.padding.t - bar.style.padding.b) - modulegroups[modulegroup].dimensions.height) / 2;
-				break;
-			case End:
-				modgroupy = (bar.dimensions.height - bar.style.padding.t - bar.style.padding.b) - modulegroups[modulegroup].dimensions.height;
-				break;
-		}
-
-		drw_rect(drw,
-			modgroupx, modgroupy + bar.style.padding.t,
-			modulegroups[modulegroup].dimensions.width, modulegroups[modulegroup].dimensions.height, modulegroups[modulegroup].style.border_width,
-			(Color){0.1, 0.1, 0.1, 0.4},
-			(Color){0.2, 0.2, 0.2, 1.0}
-		);
-		
-		for (int i = 0; i < dynarray_length(modulegroups[modulegroup].modules); i++) {
-			moduledraw(&modulegroups[modulegroup].modules[i], modulegroup, m, c, 1);
-		}
-	}
-
-	drw_map(drw, m->barwin, 0, 0, m->ww, bar.dimensions.height);
-}
-
-void
-drawbars(void)
-{
-	Monitor *m;
-
-	for (m = mons; m; m = m->next)
-		drawbar(m);
-}
 
 void
 expose(XEvent *e)
@@ -704,7 +604,7 @@ expose(XEvent *e)
 	XExposeEvent *ev = &e->xexpose;
 
 	if (ev->count == 0 && (m = wintomon(ev->window))) {
-		drawbar(m);
+		drawbar(m, NULL);
 		if (m == selmon)
 			updatesystray(0);
 	}
@@ -1413,7 +1313,7 @@ propertynotify(XEvent *e)
 		if (ev->atom == XA_WM_NAME || ev->atom == netatom[NetWMName]) {
 			updatetitle(c);
 			if (c == c->mon->sel)
-				drawbar(c->mon);
+				drawbar(c->mon, NULL);
 		}
 		if (ev->atom == netatom[NetWMWindowType])
 			updatewindowtype(c);
@@ -1557,7 +1457,7 @@ restack(Monitor *m)
 	XEvent ev;
 	XWindowChanges wc;
 
-	drawbar(m);
+	drawbar(m, NULL);
 	if (!m->sel)
 		return;
 	if (m->sel->isfloating || !m->lt[m->sellt]->arrange)
@@ -1766,6 +1666,7 @@ setup(void)
 	/* init bars */
 	updatebars();
 	updatestatus();
+	bar_initupdateintervals();
 	/* supporting window for NetWMCheck */
 	wmcheckwin = XCreateSimpleWindow(dpy, root, 0, 0, 1, 1, 0, 0, 0);
 	XChangeProperty(dpy, wmcheckwin, netatom[NetWMCheck], XA_WINDOW, 32,
@@ -1848,7 +1749,7 @@ setlayout(const Arg *arg)
 	if (selmon->sel)
 		arrange(selmon);
 	else
-		drawbar(selmon);
+		drawbar(selmon, NULL);
 }
 
 /* arg > 1.0 will set mfact absolutely */
@@ -2391,7 +2292,7 @@ updatestatus(void)
 {
 	if (!gettextprop(root, XA_WM_NAME, stext, sizeof(stext)))
 		strcpy(stext, "radium");
-	drawbar(selmon);
+	drawbar(selmon, NULL);
 	updatesystray(1);
 }
 
@@ -2522,7 +2423,7 @@ updatesystray(int updatebar)
 	XSync(dpy, False);
 	
 	if (updatebar)
-		drawbar(m);
+		drawbar(m, NULL);
 }
 
 void
