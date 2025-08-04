@@ -93,7 +93,7 @@ static const Key keys[] = {
 
 	{ MODKEY,                       XK_h,      focusdir,       {.i = 0 } }, // left
 	{ MODKEY,                       XK_l,      focusdir,       {.i = 1 } }, // right
-	{ MODKEY,                       XK_K,      focusdir,       {.i = 2 } }, // up
+	{ MODKEY,                       XK_k,      focusdir,       {.i = 2 } }, // up
 	{ MODKEY,                       XK_j,      focusdir,       {.i = 3 } }, // down
 	{ MODKEY,                       XK_Left,   focusdir,       {.i = 0 } }, // left
 	{ MODKEY,                       XK_Right,  focusdir,       {.i = 1 } }, // right
