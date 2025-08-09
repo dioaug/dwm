@@ -633,6 +633,8 @@ focus(Client *c)
 	}
 	selmon->sel = c;
 	selmon->pertag->sel[selmon->pertag->curtag] = c;
+	if (selmon->lt[selmon->sellt]->arrange == monocle)
+		arrangemon(selmon);
 	drawbars();
 }
 
@@ -643,6 +645,24 @@ focusdir(const Arg *arg)
 
 	if (!s)
 		return;
+
+	if (selmon->lt[selmon->sellt]->arrange == monocle) {
+		int d;
+		switch (arg->i) {
+		case 0:
+		case 3:
+			d = -1;
+			break;
+		default:
+		case 1:
+		case 2:
+			d = +1;
+			break;
+		}
+		const Arg a = {.i = d};
+		focusstack(&a);
+		return;
+	}
 
 	unsigned int score = -1;
 	unsigned int client_score;
@@ -699,6 +719,32 @@ focusdir(const Arg *arg)
 	if (f && f != s) {
 		focus(f);
 		restack(f->mon);
+	}
+}
+
+void
+focusstack(const Arg *arg)
+{
+	Client *c = NULL, *i;
+
+	if (!selmon->sel || (selmon->sel->isfullscreen && lockfullscreen))
+		return;
+	if (arg->i > 0) {
+		for (c = selmon->sel->next; c && !ISVISIBLE(c); c = c->next);
+		if (!c)
+			for (c = selmon->clients; c && !ISVISIBLE(c); c = c->next);
+	} else {
+		for (i = selmon->clients; i != selmon->sel; i = i->next)
+			if (ISVISIBLE(i))
+				c = i;
+		if (!c)
+			for (; i; i = i->next)
+				if (ISVISIBLE(i))
+					c = i;
+	}
+	if (c) {
+		focus(c);
+		restack(selmon);
 	}
 }
 
@@ -1046,8 +1092,16 @@ monocle(Monitor *m)
 			n++;
 	if (n > 0) /* override layout symbol */
 		snprintf(m->ltsymbol, sizeof m->ltsymbol, " %d", n);
-	for (c = nexttiled(m->clients); c; c = nexttiled(c->next))
-		resize(c, m->wx, m->wy, m->ww, m->wh, 0, 0);
+	for (c = m->stack; c && (!ISVISIBLE(c) || c->isfloating); c = c->snext)
+	;
+		if (c && !c->isfloating) {
+			XMoveWindow(dpy, c->win, m->wx, m->wy);
+				resize(c, m->wx, m->wy, m->ww - 2 * c->bw, m->wh - 2 * c->bw, 0, 0);
+			c = c->snext;
+		}
+		for (; c; c = c->snext)
+			if (!c->isfloating && ISVISIBLE(c))
+				XMoveWindow(dpy, c->win, WIDTH(c) * -2, c->y);
 }
 
 void
@@ -1672,7 +1726,7 @@ setup(void)
 	XChangeProperty(dpy, wmcheckwin, netatom[NetWMCheck], XA_WINDOW, 32,
 		PropModeReplace, (unsigned char *) &wmcheckwin, 1);
 	XChangeProperty(dpy, wmcheckwin, netatom[NetWMName], utf8string, 8,
-		PropModeReplace, (unsigned char *) "radium", 3);
+		PropModeReplace, (unsigned char *) "radium", 6);
 	XChangeProperty(dpy, root, netatom[NetWMCheck], XA_WINDOW, 32,
 		PropModeReplace, (unsigned char *) &wmcheckwin, 1);
 	/* EWMH support per view */

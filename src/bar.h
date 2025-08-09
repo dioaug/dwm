@@ -20,7 +20,7 @@ typedef struct {
 } BoxStyle;
 
 struct Module;
-typedef Dimensions (*ModDrawFunc)(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw, bool updatecontent);
+typedef Dimensions (*ModDrawFunc)(struct Module *mod, Monitor *m, Client *c, Vec2 pos, bool draw, bool updatecontent);
 
 typedef struct {
 	// char **elements;
@@ -64,10 +64,10 @@ void drawbar(Monitor *m, ModuleId* updatespecificmodcontent);
 void drawbars(void);
 void setupbarmodules();
 void bar_initupdateintervals();
-void moduledraw(struct Module *mod, enum alignment alignment, Monitor *m, Client *c, int shoulddraw, bool updatecontent);
+void moduledraw(struct Module *mod, enum alignment alignment, Monitor *m, Client *c, bool draw, bool updatecontent);
 
-Dimensions moduledraw_tags(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw, bool updatecontent);
-Dimensions moduledraw_rect(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw, bool updatecontent);
-Dimensions moduledraw_wintitle(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw, bool updatecontent);
-Dimensions moduledraw_time(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw, bool updatecontent);
-Dimensions moduledraw_systray(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw, bool updatecontent);
+Dimensions moduledraw_tags(struct Module *mod, Monitor *m, Client *c, Vec2 pos, bool draw, bool updatecontent);
+Dimensions moduledraw_rect(struct Module *mod, Monitor *m, Client *c, Vec2 pos, bool draw, bool updatecontent);
+Dimensions moduledraw_wintitle(struct Module *mod, Monitor *m, Client *c, Vec2 pos, bool draw, bool updatecontent);
+Dimensions moduledraw_time(struct Module *mod, Monitor *m, Client *c, Vec2 pos, bool draw, bool updatecontent);
+Dimensions moduledraw_systray(struct Module *mod, Monitor *m, Client *c, Vec2 pos, bool draw, bool updatecontent);

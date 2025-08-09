@@ -51,17 +51,17 @@ drawbar(Monitor *m, ModuleId* updatespecificmodcontent)
 		// doing this to get the modulegroup dimensions before drawing the modules
 		for (int i = 0; i < dynarray_length(modulegroups[modulegroup].modules); i++) {
 
-			bool eita = false;
+			bool updatecontent = false;
 
 			if (updatespecificmodcontent != NULL &&
 				updatespecificmodcontent->ModuleGroupIndex == modulegroup && 
 				updatespecificmodcontent->ModuleIndex == i)
-					eita = true;
+					updatecontent = true;
 			else
-			 	eita = false;
+			 	updatecontent = false;
 
 
-			moduledraw(&modulegroups[modulegroup].modules[i], modulegroup, m, c, 0, eita);
+			moduledraw(&modulegroups[modulegroup].modules[i], modulegroup, m, c, 0, updatecontent);
 		}
 
 		if (modulegroups[modulegroup].dimensions.width == 0)
@@ -125,16 +125,16 @@ drawbar(Monitor *m, ModuleId* updatespecificmodcontent)
 		);
 		
 		for (int i = 0; i < dynarray_length(modulegroups[modulegroup].modules); i++) {
-			bool eita = false;
+			bool updatecontent = false;
 
 			if (updatespecificmodcontent != NULL &&
 				updatespecificmodcontent->ModuleGroupIndex == modulegroup && 
 				updatespecificmodcontent->ModuleIndex == i)
-					eita = true;
+					updatecontent = true;
 			else
-			 	eita = false;
+			 	updatecontent = false;
 
-			moduledraw(&modulegroups[modulegroup].modules[i], modulegroup, m, c, 1, eita);
+			moduledraw(&modulegroups[modulegroup].modules[i], modulegroup, m, c, 1, updatecontent);
 		}
 	}
 
@@ -161,8 +161,8 @@ setupbarmodules()
 			.dimensions = {0,0},
 			.nextelementxpos = 0,
 			.style = {
-				.border_width = 2, 
-				.padding = {2, 2, 2, 2},
+				.border_width = 0, 
+				.padding = {0, 0, 0, 0},
 				.alignitems = Center,
 				.gap = 4,
 			},
@@ -184,8 +184,8 @@ setupbarmodules()
 		},
 		.modulesize = {.x=0,.y=0},
 		.style = {
-			.border_width = 2, 
-			.padding = {2, 2, 2, 2},
+			.border_width = 0, 
+			.padding = {0, 0, 0, 0},
 			.alignitems = Start,
 			.gap = 2,
 		}
@@ -206,8 +206,8 @@ setupbarmodules()
 		},
 		.modulesize = {.x=0,.y=0},
 		.style = {
-			.border_width = 2, 
-			.padding = {2, 2, 2, 2},
+			.border_width = 0, 
+			.padding = {0, 0, 0, 0},
 			.alignitems = Start,
 			.gap = 2,
 		}
@@ -228,8 +228,8 @@ setupbarmodules()
 		},
 		.modulesize = {.x=0,.y=0},
 		.style = {
-			.border_width = 2, 
-			.padding = {2, 2, 2, 2},
+			.border_width = 0, 
+			.padding = {0, 0, 0, 0},
 			.alignitems = Start,
 			.gap = 2,
 		}
@@ -251,8 +251,8 @@ setupbarmodules()
 		},
 		.modulesize = {.x=0,.y=0},
 		.style = {
-			.border_width = 2, 
-			.padding = {2, 2, 2, 2},
+			.border_width = 0, 
+			.padding = {0, 0, 0, 0},
 			.alignitems = Start,
 			.gap = 2,
 		}
@@ -274,7 +274,7 @@ setupbarmodules()
 		},
 		.modulesize = {.x=0,.y=0},
 		.style = {
-			.border_width = 2, 
+			.border_width = 0, 
 			.padding = {0, 0, 0, 0},
 			.alignitems = Start,
 			.gap = 2,
@@ -330,10 +330,10 @@ bar_initupdateintervals()
 }
 
 void
-moduledraw(struct Module *mod, enum alignment alignment, Monitor *m, Client *c, int shoulddraw, bool updatecontent)
+moduledraw(struct Module *mod, enum alignment alignment, Monitor *m, Client *c, bool draw, bool updatecontent)
 {
 	Dimensions modsize = mod->drawfunc(mod, m, c, (Vec2){0,0}, 0, updatecontent);
-	if (!shoulddraw) {
+	if (!draw) {
 		if (modsize.width != 0 || modsize.width != 0) {
 			int moduleheight = modsize.height + (mod->style.border_width * 2) + (modulegroups[alignment].style.border_width * 2) +
 			modulegroups[alignment].style.padding.t + modulegroups[alignment].style.padding.b +
@@ -436,14 +436,14 @@ moduledraw(struct Module *mod, enum alignment alignment, Monitor *m, Client *c, 
 		modulegroups[alignment].nextelementxpos += modulewidth + modulegroups[alignment].style.gap;
 	}
 
-	Dimensions _modsize = mod->drawfunc(mod, m, c, modpos, shoulddraw, updatecontent);
+	Dimensions _modsize = mod->drawfunc(mod, m, c, modpos, draw, updatecontent);
 }
 
 Dimensions
-moduledraw_rect(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw, bool updatecontent)
+moduledraw_rect(struct Module *mod, Monitor *m, Client *c, Vec2 pos, bool draw, bool updatecontent)
 {
 	unsigned int width = 16, height = 16;
-	if (shoulddraw) {
+	if (draw) {
 		drw_rect(drw, pos.x, pos.y, width, height, 1, 
 			(Color){0.1, 0.1, 0.1, 0.4},
 			(Color){0.2, 0.2, 0.2, 1.0});
@@ -456,7 +456,7 @@ moduledraw_rect(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shouldd
 }
 
 Dimensions
-moduledraw_tags(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw, bool updatecontent)
+moduledraw_tags(struct Module *mod, Monitor *m, Client *c, Vec2 pos, bool draw, bool updatecontent)
 {
 	unsigned int width = 0, height = 0;
 	unsigned int tagsgap = mod->style.gap;
@@ -466,7 +466,7 @@ moduledraw_tags(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shouldd
 	for (int i = 0; i < LENGTH(tags); i++) {
 		Dimensions textdim = drw_get_textdim(drw, tags[i], font_desc_temp); 
 
-		if (shoulddraw) {
+		if (draw) {
 		
 			for (c = m->clients; c; c = c->next) {
 				occ |= c->tags;
@@ -481,7 +481,7 @@ moduledraw_tags(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shouldd
 			if (m->tagset[m->seltags] & 1 << i) {
 				text_color = (Color){1.0, 1.0, 1.0, 1.0};
 				bg_color   = (Color){0.2, 0.2, 0.2, 1.0};
-				bd_color   = (Color){0.2, 0.2, 0.2, 1.0};
+				bd_color   = (Color){0.2, 0.2, 0.2, 0.0};
 			} else if (occ & 1 << i) {
 				text_color = (Color){1.0, 1.0, 1.0, 1.0};
 				bg_color   = (Color){0.1, 0.1, 0.1, 0.0};
@@ -522,7 +522,7 @@ moduledraw_tags(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shouldd
 }
 
 Dimensions
-moduledraw_time(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw, bool updatecontent)
+moduledraw_time(struct Module *mod, Monitor *m, Client *c, Vec2 pos, bool draw, bool updatecontent)
 {
 	unsigned int width = 0, height = 0;
 
@@ -533,8 +533,8 @@ moduledraw_time(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shouldd
 		time(&raw_time);
 		time_info = localtime(&raw_time);
 	
-		char buffer[9];
-		strftime(buffer, sizeof(buffer), "%H:%M:%S", time_info);
+		char buffer[6];
+		strftime(buffer, sizeof(buffer), "%H:%M", time_info);
 	
 		snprintf(mod->children.content, 100, "%s", buffer);
 	}
@@ -546,10 +546,10 @@ moduledraw_time(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shouldd
 	height = textdim.height + (mod->children.style.border_width * 2) 
 	+ mod->children.style.padding.b + mod->children.style.padding.t;
 
-	if (shoulddraw) {
+	if (draw) {
 		drw_rect(drw, pos.x, pos.y, width, height, mod->children.style.border_width,
 			(Color){0.1, 0.1, 0.1, 0.4},
-			(Color){0.2, 0.2, 0.2, 1.0});
+			(Color){0.2, 0.2, 0.2, 0.0});
 		drw_text(drw, 
 			pos.x + mod->children.style.padding.l + mod->children.style.border_width, 
 			pos.y + mod->children.style.padding.t + mod->children.style.border_width, 
@@ -564,7 +564,7 @@ moduledraw_time(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shouldd
 }
 
 Dimensions
-moduledraw_wintitle(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw, bool updatecontent)
+moduledraw_wintitle(struct Module *mod, Monitor *m, Client *c, Vec2 pos, bool draw, bool updatecontent)
 {
 	unsigned int width = 0, height = 0;
 
@@ -580,7 +580,7 @@ moduledraw_wintitle(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int sho
 	height = textdim.height + (mod->children.style.border_width * 2) 
 	+ mod->children.style.padding.b + mod->children.style.padding.t;
 
-	if (shoulddraw) {
+	if (draw) {
 		drw_rect(drw, pos.x, pos.y, width, height, mod->children.style.border_width,
 			(Color){0.1, 0.1, 0.1, 0.4},
 			(Color){0.2, 0.2, 0.2, 1.0});
@@ -598,12 +598,12 @@ moduledraw_wintitle(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int sho
 }
 
 Dimensions
-moduledraw_systray(struct Module *mod, Monitor *m, Client *c, Vec2 pos, int shoulddraw, bool updatecontent)
+moduledraw_systray(struct Module *mod, Monitor *m, Client *c, Vec2 pos, bool draw, bool updatecontent)
 {
 	unsigned int width = getsystraywidth(), height = 16;
 
 	systraypos = (Vec2){pos.x, pos.y};
-	if (shoulddraw && getsystraywidth() > 1) {
+	if (draw && getsystraywidth() > 1) {
 		drw_rect(drw, pos.x, pos.y, width, height, 1,
 			(Color){0.1, 0.1, 0.1, 0.4},
 			(Color){0.2, 0.2, 0.2, 1.0});

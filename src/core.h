@@ -216,6 +216,7 @@ void togglebar(const Arg *arg);
 void togglefloating(const Arg *arg);
 void togglefullscr(const Arg *arg);
 void focusdir(const Arg *arg);
+void focusstack(const Arg *arg);
 void placedir(const Arg *arg);
 void setmfact(const Arg *arg);
 void incnmaster(const Arg *arg);
