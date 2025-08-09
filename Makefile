@@ -2,6 +2,7 @@ include config.mk
 
 SRCDIR = src
 BUILDDIR = build
+DOCSDIR = docs
 BIN = $(BUILDDIR)/radium
 
 SRC = $(wildcard $(SRCDIR)/*.c)
@@ -23,7 +24,7 @@ clean:
 
 dist: clean
 	mkdir -p radium-$(VERSION)
-	cp -R LICENSE Makefile README.md config.mk radium.1\
+	cp -R LICENSE Makefile README.md config.mk $(DOCSDIR)/radium.1\
 		$(SRC) radium-$(VERSION)
 	tar -cf radium-$(VERSION).tar radium-$(VERSION)
 	gzip radium-$(VERSION).tar
@@ -34,7 +35,7 @@ install: all
 	cp -f $(BIN) $(DESTDIR)$(PREFIX)/bin
 	chmod 755 $(DESTDIR)$(PREFIX)/bin/radium
 	mkdir -p $(DESTDIR)$(MANPREFIX)/man1
-	sed "s/VERSION/$(VERSION)/g" < radium.1 > $(DESTDIR)$(MANPREFIX)/man1/radium.1
+	sed "s/VERSION/$(VERSION)/g" < $(DOCSDIR)/radium.1 > $(DESTDIR)$(MANPREFIX)/man1/radium.1
 	chmod 644 $(DESTDIR)$(MANPREFIX)/man1/radium.1
 
 uninstall:
